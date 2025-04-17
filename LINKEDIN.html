@@ -1,0 +1,75 @@
+(function () {
+    function getTextFrom(selector) {
+        const el = document.querySelector(selector);
+        return el ? el.textContent.trim() : '';
+    }
+
+    function getName() {
+        const nameEl = document.querySelector('h1');
+        return nameEl ? nameEl.innerText.trim() : '';
+    }
+
+    function getConnections() {
+        const spans = document.querySelectorAll('span');
+        for (const span of spans) {
+            if (span.innerText.toLowerCase().includes('connections')) {
+                return span.innerText.trim();
+            }
+        }
+        return '';
+    }
+
+    function getAbout() {
+        const aboutSection = document.querySelector('#about')?.closest('section');
+        const aboutEl = aboutSection?.querySelector('span[aria-hidden="true"]');
+        return aboutEl ? aboutEl.innerText.trim() : '';
+    }
+
+    function getExperience() {
+        const experienceSection = document.querySelector('#experience')?.closest('section');
+        if (!experienceSection) return [];
+
+        const items = experienceSection.querySelectorAll('li.artdeco-list__item');
+        return Array.from(items).map(item => {
+            const roleEl = item.querySelector('.t-bold span');
+            const companyEl = item.querySelector('.t-14.t-normal span');
+            const durationEl = item.querySelector('.t-14.t-normal.t-black--light span');
+
+            return {
+                title: roleEl?.innerText.trim() || '',
+                company: companyEl?.innerText.trim() || '',
+                duration: durationEl?.innerText.trim() || ''
+            };
+        }).filter(exp => exp.title || exp.company || exp.duration);
+    }
+
+    function getEducation() {
+        const educationSection = document.querySelector('#education')?.closest('section');
+        if (!educationSection) return [];
+
+        const items = educationSection.querySelectorAll('li.artdeco-list__item');
+        return Array.from(items).map(item => {
+            const schoolEl = item.querySelector('.t-bold span');
+            const degreeEl = item.querySelector('.t-14.t-normal span');
+            const durationEl = item.querySelector('.t-14.t-normal.t-black--light span');
+
+            return {
+                school: schoolEl?.innerText.trim() || '',
+                degree: degreeEl?.innerText.trim() || '',
+                duration: durationEl?.innerText.trim() || ''
+            };
+        }).filter(edu => edu.school || edu.degree || edu.duration);
+    }
+
+    const profile = {
+        name: getName(),
+        headline: getTextFrom('.text-body-medium.break-words'),
+        location: getTextFrom('.text-body-small.inline.t-black--light.break-words'),
+        connections: getConnections(),
+        about: getAbout(),
+        experience: getExperience(),
+        education: getEducation()
+    };
+
+    console.log("LinkedIn Profile Details:", profile);
+})();
