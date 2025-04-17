@@ -1,30 +1,28 @@
 (function () {
+    // Function to get text from a specific selector
     function getTextFrom(selector) {
         const el = document.querySelector(selector);
         return el ? el.textContent.trim() : '';
     }
 
+    // Function to extract the name of the profile
     function getName() {
         const nameEl = document.querySelector('h1');
         return nameEl ? nameEl.innerText.trim() : '';
     }
 
+    // Function to extract the connections count from the profile
     function getConnections() {
         const spans = document.querySelectorAll('span');
         for (const span of spans) {
-            if (span.innerText.toLowerCase().includes('connections')) {
+            if (span.innerText.includes('connections')) {
                 return span.innerText.trim();
             }
         }
         return '';
     }
 
-    function getAbout() {
-        const aboutSection = document.querySelector('#about')?.closest('section');
-        const aboutEl = aboutSection?.querySelector('span[aria-hidden="true"]');
-        return aboutEl ? aboutEl.innerText.trim() : '';
-    }
-
+    // Function to extract experience details
     function getExperience() {
         const experienceSection = document.querySelector('#experience')?.closest('section');
         if (!experienceSection) return [];
@@ -33,16 +31,15 @@
         return Array.from(items).map(item => {
             const roleEl = item.querySelector('.t-bold span');
             const companyEl = item.querySelector('.t-14.t-normal span');
-            const durationEl = item.querySelector('.t-14.t-normal.t-black--light span');
 
             return {
                 title: roleEl?.innerText.trim() || '',
-                company: companyEl?.innerText.trim() || '',
-                duration: durationEl?.innerText.trim() || ''
+                company: companyEl?.innerText.trim() || ''
             };
-        }).filter(exp => exp.title || exp.company || exp.duration);
+        }).filter(exp => exp.title || exp.company);
     }
 
+    // Function to extract education details
     function getEducation() {
         const educationSection = document.querySelector('#education')?.closest('section');
         if (!educationSection) return [];
@@ -51,25 +48,60 @@
         return Array.from(items).map(item => {
             const schoolEl = item.querySelector('.t-bold span');
             const degreeEl = item.querySelector('.t-14.t-normal span');
-            const durationEl = item.querySelector('.t-14.t-normal.t-black--light span');
 
             return {
                 school: schoolEl?.innerText.trim() || '',
-                degree: degreeEl?.innerText.trim() || '',
-                duration: durationEl?.innerText.trim() || ''
+                degree: degreeEl?.innerText.trim() || ''
             };
-        }).filter(edu => edu.school || edu.degree || edu.duration);
+        }).filter(edu => edu.school || edu.degree);
     }
 
+    // Function to extract activity details from the HTML structure
+    function extractActivityDetails() {
+        const activityElement = document.querySelector('.feed-shared-update-v2');
+        
+        // Extract author information (name and profile link)
+        const authorName = activityElement.querySelector('.update-components-actor__title')?.innerText;
+        const authorProfileLink = activityElement.querySelector('.update-components-actor__image')?.href;
+        
+        // Extract activity content
+        const activityContent = activityElement.querySelector('.feed-shared-update-v2__description')?.innerText;
+        
+        // Extract the image associated with the activity
+        const activityImageUrl = activityElement.querySelector('.ivm-view-attr__img-wrapper img')?.src;
+        
+        // Extract reactions (like count)
+        const likeCount = activityElement.querySelector('.social-details-social-counts__reactions-count')?.innerText;
+
+        // Construct the activity details object
+        const activityDetails = {
+            author: authorName,
+            profileLink: authorProfileLink,
+            content: activityContent,
+            imageUrl: activityImageUrl,
+            likeCount: likeCount
+        };
+
+        return activityDetails;
+    }
+
+    // Profile information
     const profile = {
         name: getName(),
         headline: getTextFrom('.text-body-medium.break-words'),
         location: getTextFrom('.text-body-small.inline.t-black--light.break-words'),
         connections: getConnections(),
-        about: getAbout(),
         experience: getExperience(),
         education: getEducation()
     };
 
-    console.log("LinkedIn Profile Details:", profile);
+    // Log the profile information in a structured format
+    console.log('Profile Information:');
+    console.table(profile);
+
+    // Extract and log the activity details in a structured format
+    const activityDetails = extractActivityDetails();
+    console.log('Activity Details:');
+    console.table(activityDetails);
+
 })();
