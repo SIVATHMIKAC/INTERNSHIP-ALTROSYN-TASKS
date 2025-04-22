@@ -1,107 +1,112 @@
-(function () {
-    // Function to get text from a specific selector
-    function getTextFrom(selector) {
-        const el = document.querySelector(selector);
-        return el ? el.textContent.trim() : '';
+(async () => {
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+  const filters = {
+    sortBy: "Latest",
+    datePosted: "Past month",
+    contentType: "Images",
+    postedBy: "People you follow",
+    fromMembers: ["Pranav Borge"],
+    fromCompanies: ["IES's Management College and Research Centre (IESMCRC)"],
+    mentioningMembers: ["Sundar Pichai"],
+    mentioningCompanies: ["Google"],
+    authorIndustry: ["Information Technology"],
+    authorCompany: ["TechCorp"],
+    authorKeywords: ["AI", "Machine Learning"],
+    authorTitle: ["Data Analyst"]
+  };
+
+  const openFilters = document.querySelector('button[aria-label*="Show all filters"]');
+  if (openFilters) {
+    openFilters.click();
+    console.log("🟢 Opened filters panel");
+    await sleep(2000);
+  }
+
+  async function applyCheckbox(group, option) {
+    if (!group || !option) {
+      console.warn(`❌ Group or Option missing: "${group}", "${option}"`);
+      return;
     }
 
-    // Function to extract the name of the profile
-    function getName() {
-        const nameEl = document.querySelector('h1');
-        return nameEl ? nameEl.innerText.trim() : '';
+    const section = [...document.querySelectorAll("fieldset")].find(f => f.innerText.includes(group));
+    if (!section) {
+      console.warn(`❌ Section "${group}" not found`);
+      return;
     }
 
-    // Function to extract the connections count from the profile
-    function getConnections() {
-        const spans = document.querySelectorAll('span');
-        for (const span of spans) {
-            if (span.innerText.includes('connections')) {
-                return span.innerText.trim();
-            }
-        }
-        return '';
+    const label = [...section.querySelectorAll("label")].find(l => l.innerText.includes(option));
+    if (!label) {
+      console.warn(`❌ Option "${option}" not found in "${group}"`);
+      return;
     }
 
-    // Function to extract experience details
-    function getExperience() {
-        const experienceSection = document.querySelector('#experience')?.closest('section');
-        if (!experienceSection) return [];
+    label.click();
+    console.log(`✅ Selected "${option}" under "${group}"`);
+    await sleep(1000);
+  }
 
-        const items = experienceSection.querySelectorAll('li.artdeco-list__item');
-        return Array.from(items).map(item => {
-            const roleEl = item.querySelector('.t-bold span');
-            const companyEl = item.querySelector('.t-14.t-normal span');
+  await applyCheckbox("Sort by", filters.sortBy);
+  await applyCheckbox("Date posted", filters.datePosted);
+  await applyCheckbox("Content type", filters.contentType);
+  await applyCheckbox("Posted by", filters.postedBy);
 
-            return {
-                title: roleEl?.innerText.trim() || '',
-                company: companyEl?.innerText.trim() || ''
-            };
-        }).filter(exp => exp.title || exp.company);
+  async function applySearchable(ariaLabel, values, triggerText) {
+    if (!values || values.length === 0) return;
+
+    const trigger = [...document.querySelectorAll("button")].find(btn => btn.innerText.trim() === triggerText);
+    if (!trigger) {
+      console.warn(`❌ Trigger "${triggerText}" not found`);
+      return;
     }
 
-    // Function to extract education details
-    function getEducation() {
-        const educationSection = document.querySelector('#education')?.closest('section');
-        if (!educationSection) return [];
+    trigger.click();
+    console.log(`🟢 Trigger clicked: "${triggerText}"`);
+    await sleep(1500);
 
-        const items = educationSection.querySelectorAll('li.artdeco-list__item');
-        return Array.from(items).map(item => {
-            const schoolEl = item.querySelector('.t-bold span');
-            const degreeEl = item.querySelector('.t-14.t-normal span');
+    for (const val of values) {
+      const input = document.querySelector(`input[aria-label="${ariaLabel}"]`);
+      if (!input) {
+        console.warn(`❌ Input with label "${ariaLabel}" not found`);
+        continue;
+      }
 
-            return {
-                school: schoolEl?.innerText.trim() || '',
-                degree: degreeEl?.innerText.trim() || ''
-            };
-        }).filter(edu => edu.school || edu.degree);
+      input.focus();
+      input.value = val;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      console.log(`🔎 Typing: ${val}`);
+      await sleep(2000);
+
+      const options = [...document.querySelectorAll('[role="listbox"] li')];
+      const match = options.find(o => o.innerText.toLowerCase().includes(val.toLowerCase()));
+      const target = match || options[0];
+
+      if (target) {
+        target.click();
+        console.log(`✅ Selected: ${target.innerText}`);
+      } else {
+        console.warn(`⚠️ No match found for "${val}"`);
+      }
+
+      await sleep(2000);
     }
+  }
 
-    // Function to extract activity details from the HTML structure
-    function extractActivityDetails() {
-        const activityElement = document.querySelector('.feed-shared-update-v2');
-        
-        // Extract author information (name and profile link)
-        const authorName = activityElement.querySelector('.update-components-actor__title')?.innerText;
-        const authorProfileLink = activityElement.querySelector('.update-components-actor__image')?.href;
-        
-        // Extract activity content
-        const activityContent = activityElement.querySelector('.feed-shared-update-v2__description')?.innerText;
-        
-        // Extract the image associated with the activity
-        const activityImageUrl = activityElement.querySelector('.ivm-view-attr__img-wrapper img')?.src;
-        
-        // Extract reactions (like count)
-        const likeCount = activityElement.querySelector('.social-details-social-counts__reactions-count')?.innerText;
+  await applySearchable("Add a person's name", filters.fromMembers, "Add a person's name");
+  await applySearchable("Add a company's name", filters.fromCompanies, "Add a company's name");
+  await applySearchable("Add a person's name", filters.mentioningMembers, "Mentioning member");
+  await applySearchable("Add a company's name", filters.mentioningCompanies, "Mentioning company");
+  await applySearchable("Add an industry", filters.authorIndustry, "Author industry");
+  await applySearchable("Add a company", filters.authorCompany, "Author company");
+  await applySearchable("Add a keyword", filters.authorKeywords, "Author Keywords");
+  await applySearchable("Add a title", filters.authorTitle, "Title");
 
-        // Construct the activity details object
-        const activityDetails = {
-            author: authorName,
-            profileLink: authorProfileLink,
-            content: activityContent,
-            imageUrl: activityImageUrl,
-            likeCount: likeCount
-        };
-
-        return activityDetails;
-    }
-
-    // Profile information
-    const profile = {
-        name: getName(),
-        headline: getTextFrom('.text-body-medium.break-words'),
-        location: getTextFrom('.text-body-small.inline.t-black--light.break-words'),
-        connections: getConnections(),
-        experience: getExperience(),
-        education: getEducation()
-    };
-
-    // Log the profile information in a structured format
-    console.log('Profile Information:');
-    console.table(profile);
-
-    // Extract and log the activity details in a structured format
-    const activityDetails = extractActivityDetails();
-    console.log('Activity Details:');
-    console.table(activityDetails);
-
+  await sleep(2000);
+  const showBtn = [...document.querySelectorAll("button")].find(b => /show results/i.test(b.innerText));
+  if (showBtn) {
+    showBtn.click();
+    console.log("🚀 Show results clicked");
+  } else {
+    console.warn("❌ 'Show results' button not found");
+  }
 })();
