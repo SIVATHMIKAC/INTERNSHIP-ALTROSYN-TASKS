@@ -1,158 +1,140 @@
 (async () => {
-  const sleep = ms => new Promise(res => setTimeout(res, ms));
+  const wait = ms => new Promise(res => setTimeout(res, ms));
 
-  const filters = {
+  const FILTERS = {
     sortBy: "Latest",
     datePosted: "Past week",
-    contentType: "Images",  // Updated to "Images" as per your example
+    contentType: "Images",
     postedBy: "People you follow",
-    fromMembers: ["Swetha Guggal", "Pranav Borge"], // Second member added
-    fromCompanies: ["CeduraTech", "IES's Management College and Research Centre (IESMCRC)"]
+    people: ["Swetha Guggal", "Pranav Borge"],
+    companies: [
+      "CeduraTech",
+      "IES's Management College and Research Centre (IESMCRC)"
+    ]
   };
 
-  // 1. Open "All filters" panel
-  const openBtn = document.querySelector('button[aria-label*="Show all filters"]');
-  if (openBtn) {
-    openBtn.click();
-    console.log("🟢 Opened all filters panel");
-    await sleep(3000);
-  } else {
-    console.warn("❌ Could not find 'Show all filters' button");
-    return;
-  }
+  const openAllFilters = async () => {
+    const btn = document.querySelector('button[aria-label*="Show all filters"]');
+    if (!btn) return console.warn("🔴 'All filters' button not found");
+    btn.click();
+    console.log("🔓 Opened all filters");
+    await wait(1500);
+  };
 
-  // 2. Apply checkbox filters (general)
-  async function applyCheckbox(group, option) {
-    const fs = [...document.querySelectorAll('fieldset')].find(f => f.innerText.includes(group));
-    if (!fs) {
-      console.warn(`❌ Fieldset not found: ${group}`);
-      return;
-    }
-    const lbl = [...fs.querySelectorAll('label')].find(l => l.innerText.includes(option));
-    if (lbl) {
-      lbl.click();
-      console.log(`✅ Selected "${option}" in "${group}"`);
-    } else {
-      console.warn(`❌ Option not found: "${option}" in ${group}`);
-    }
-    await sleep(1500);
-  }
+  const applyCheckbox = async (groupName, labelText) => {
+    const group = [...document.querySelectorAll("fieldset")]
+      .find(fs => fs.innerText.includes(groupName));
+    if (!group) return console.warn(`❌ Group not found: ${groupName}`);
 
-  // ⚠️ Custom fix for Content Type (Radio Buttons)
-  async function applyContentType(contentType) {
-    const options = [...document.querySelectorAll('.search-reusables__filter-value-item')];
-    const option = options.find(item => item.innerText.trim().toLowerCase().includes(contentType.toLowerCase()));
+    const label = [...group.querySelectorAll("label")]
+      .find(lbl => lbl.innerText.includes(labelText));
+    if (!label) return console.warn(`❌ Option not found: ${labelText}`);
 
-    if (option) {
-      const input = option.querySelector('input[type="radio"]');
-      if (input && !input.checked) {
-        input.click();
-        console.log(`✅ Content type "${contentType}" selected`);
-      } else {
-        console.warn(`❌ Content type "${contentType}" option not found or already selected`);
-      }
-    } else {
-      console.warn(`❌ Content type "${contentType}" option not found`);
-    }
+    label.click();
+    console.log(`☑️ Selected "${labelText}" under "${groupName}"`);
+    await wait(1000);
+  };
 
-    await sleep(1500);
-  }
-
-  await applyCheckbox("Sort by", filters.sortBy);
-  await applyCheckbox("Date posted", filters.datePosted);
-  await applyContentType(filters.contentType);  // Using new Content Type method
-  await applyCheckbox("Posted by", filters.postedBy);
-
-  // 3. Apply input filters (for members & companies)
-  async function applySearchField(ariaLabel, values, triggerText) {
-    if (triggerText) {
-      const triggerBtn = [...document.querySelectorAll('button')].find(b => b.innerText.trim() === triggerText);
-      if (triggerBtn) {
-        triggerBtn.click();
-        console.log(`🟢 Triggered: "${triggerText}"`);
-        await sleep(2000);
+  const searchAndSelect = async (ariaLabel, terms, buttonText) => {
+    if (buttonText) {
+      const trigger = [...document.querySelectorAll("button")]
+        .find(btn => btn.innerText.trim() === buttonText);
+      if (trigger) {
+        trigger.click();
+        console.log(`🔘 Clicked "${buttonText}"`);
+        await wait(1000);
       }
     }
 
-    for (const name of values) {
-      let input;
-      let attempts = 0;
-      while (!input && attempts < 5) {
-        input = document.querySelector(`input[aria-label="${ariaLabel}"]`);
-        if (!input) {
-          window.scrollBy(0, 150);
-          await sleep(1500);
-          attempts++;
-        }
-      }
-
+    for (const term of terms) {
+      const input = document.querySelector(`input[aria-label="${ariaLabel}"]`);
       if (!input) {
-        console.warn(`❌ Could not find input for: "${ariaLabel}"`);
+        console.warn(`⚠️ Input not found for "${ariaLabel}"`);
         continue;
       }
 
       input.focus();
-      input.value = name;
+      input.value = '';
       input.dispatchEvent(new Event('input', { bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'A', bubbles: true }));
-      input.dispatchEvent(new KeyboardEvent('keyup', { key: 'A', bubbles: true }));
+      await wait(300);
 
-      console.log(`⌨ Typing: "${name}"`);
-      await sleep(4000);
-
-      const listboxOption = [...document.querySelectorAll('[role="listbox"] li, .basic-typeahead__option')];
-      if (listboxOption.length > 0) {
-        listboxOption[0].click();
-        console.log(`✅ Selected: "${name}"`);
-      } else {
-        console.warn(`❌ No suggestion found for: "${name}"`);
+      for (let i = 0; i < term.length; i++) {
+        input.value = term.substring(0, i + 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await wait(80);
       }
 
-      await sleep(2000);
+      await wait(1000);
+
+      const suggestion = document.querySelector(
+        '[role="listbox"] li, [role="option"], .autocomplete-item, .basic-typeahead__option'
+      );
+      if (suggestion) {
+        suggestion.scrollIntoView({ block: "center" });
+        await wait(300);
+        suggestion.click();
+        console.log(`🎯 Selected suggestion: "${term}"`);
+      } else {
+        console.warn(`⚠️ No suggestion found for "${term}"`);
+      }
+
+      await wait(1000);
     }
-  }
+  };
 
-  // Apply member search field for "Add a person's name" (First Member)
-  await applySearchField("Add a person's name", filters.fromMembers.slice(0, 1), "Add a person's name");
+  const handleEntitySelection = async (entities, labelText, ariaLabel, buttonText) => {
+    for (const entity of entities) {
+      const existing = [...document.querySelectorAll("label.search-reusables__value-label")]
+        .find(lbl => lbl.innerText.trim().toLowerCase().includes(entity.toLowerCase()));
 
-  // Apply member search field for "Add a person's name" (Second Member)
-  await applySearchField("Add a person's name", filters.fromMembers.slice(1), "Add a person's name");
+      if (existing) {
+        const id = existing.getAttribute("for");
+        const checkbox = document.getElementById(id);
+        if (checkbox && !checkbox.checked) {
+          existing.click();
+          console.log(`✅ Selected: "${entity}"`);
+          await wait(1000);
+        }
+      } else {
+        console.log(`🔍 Searching for: "${entity}"`);
+        await searchAndSelect(ariaLabel, [entity], buttonText);
+      }
+    }
+  };
 
-  // 4. Apply input filters (for companies)
-  await applySearchField("Add a company's name", filters.fromCompanies, "Add a company's name");
-
-  // 5. Confirm selected filters visually
-  await sleep(3000);
-  function getConfirmedSelections() {
-    const selections = new Set();
-    document.querySelectorAll('.artdeco-pill__text, .search-reusables__filter-pill-button span, span[aria-hidden="true"]')
-      .forEach(el => selections.add(el.textContent.trim()));
-    return selections;
-  }
-
-  const confirmed = getConfirmedSelections();
-  console.log("🧾 Confirmed Filter Selections:");
-  filters.fromMembers.forEach(name => {
-    if ([...confirmed].some(t => t.includes(name))) {
-      console.log(`👤 From Member: ${name}`);
+  const showResults = () => {
+    const showBtn = [...document.querySelectorAll("button")]
+      .find(btn => /show results/i.test(btn.innerText));
+    if (showBtn) {
+      showBtn.click();
+      console.log("🚀 Showing results");
     } else {
-      console.warn(`❌ From Member not found visually: ${name}`);
+      console.warn("⚠️ 'Show results' button not found");
     }
-  });
-  filters.fromCompanies.forEach(name => {
-    if ([...confirmed].some(t => t.includes(name))) {
-      console.log(`🏢 From Company: ${name}`);
-    } else {
-      console.warn(`❌ From Company not found visually: ${name}`);
-    }
-  });
+  };
 
-  // 6. Click "Show Results"
-  const showBtn = [...document.querySelectorAll('button')].find(b => /show results/i.test(b.innerText));
-  if (showBtn) {
-    showBtn.click();
-    console.log("🚀 Show results clicked");
-  } else {
-    console.warn("❌ Show results button not found");
-  }
+  const confirmSelections = () => {
+    const tags = [...document.querySelectorAll('span.t-14.t-black--light.t-normal[aria-hidden="true"]')]
+      .map(el => el.textContent.trim());
+
+    console.log("📋 Confirmed selections:");
+    FILTERS.people.forEach(name => {
+      if (tags.some(tag => tag.includes(name))) console.log(`👤 Person: ${name}`);
+    });
+    FILTERS.companies.forEach(org => {
+      if (tags.some(tag => tag.includes(org))) console.log(`🏢 Company: ${org}`);
+    });
+  };
+
+  // 🧭 Execution Flow
+  await openAllFilters();
+  await applyCheckbox("Sort by", FILTERS.sortBy);
+  await applyCheckbox("Date posted", FILTERS.datePosted);
+  await applyCheckbox("Content type", FILTERS.contentType);
+  await applyCheckbox("Posted by", FILTERS.postedBy);
+  await handleEntitySelection(FILTERS.people, "person", "Add a person's name", "Add a person's name");
+  await handleEntitySelection(FILTERS.companies, "company", "Add a company's name", "Add a company's name");
+  confirmSelections();
+  showResults();
 })();
+
