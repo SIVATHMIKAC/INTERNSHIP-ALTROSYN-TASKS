@@ -1,0 +1,192 @@
+POPUP.CSS
+body {
+  font-family: Arial, sans-serif;
+  padding: 20px;
+  background-color: #f5f5f5;
+}
+
+h2 {
+  margin-top: 0;
+  color: #0073b1; /* LinkedIn Blue */
+}
+
+button {
+  background-color: #0073b1;
+  color: white;
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #005582;
+}
+MANIFEST.HTML
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>LinkedIn Filters</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h2>LinkedIn Filters</h2>
+  <button id="applyFilters">Apply Filters</button>
+
+  <script src="popup.js"></script>
+</body>
+</html>
+POPUP.JS
+document.getElementById("applyFilters").addEventListener("click", async () => {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ["content.js"]
+  });
+});
+// Content Script to Apply Filters on LinkedIn
+
+(async () => {
+  const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+  const FILTERS = {
+    sortBy: "Latest",
+    datePosted: "Past week",
+    contentType: "Images",
+    postedBy: "People you follow",
+    people: ["Rajasekar Veilumuthu", "Pranav Borge"],
+    companies: ["TransCore", "IES's Management College and Research Centre (IESMCRC)"],
+    authorKeywords: ["3D Environment artist"]
+  };
+
+  const openFiltersPanel = async () => {
+    const btn = document.querySelector('button[aria-label*="Show all filters"]');
+    if (!btn) return console.warn("❌ Filters button not found.");
+    btn.click();
+    console.log("🔍 Opened filters panel");
+    await delay(1500);
+  };
+
+  const selectOption = async (groupLabel, optionText) => {
+    const group = [...document.querySelectorAll("fieldset")].find(fs => fs.innerText.includes(groupLabel));
+    if (!group) return console.warn(`❌ Fieldset not found for "${groupLabel}"`);
+    const label = [...group.querySelectorAll("label")].find(lbl => lbl.innerText.includes(optionText));
+    if (!label) return console.warn(`❌ Option "${optionText}" not found in "${groupLabel}"`);
+    label.click();
+    console.log(`✅ Selected "${optionText}" in "${groupLabel}"`);
+    await delay(1000);
+  };
+
+  const typeAndSelect = async (ariaLabel, values, triggerText = "") => {
+    if (triggerText) {
+      const trigger = [...document.querySelectorAll("button")].find(btn => btn.innerText.trim() === triggerText);
+      if (trigger) {
+        trigger.click();
+        console.log(`🔘 Clicked "${triggerText}"`);
+        await delay(1000);
+      }
+    }
+
+    for (const value of values) {
+      const input = document.querySelector(`input[aria-label="${ariaLabel}"]`);
+      if (!input) {
+        console.warn(`⚠️ No input for "${ariaLabel}"`);
+        continue;
+      }
+
+      input.focus();
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await delay(300);
+
+      for (let i = 0; i < value.length; i++) {
+        input.value = value.substring(0, i + 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await delay(80);
+      }
+
+      await delay(1000);
+
+      const suggestion = document.querySelector('[role="listbox"] li, [role="option"], .autocomplete-item, .basic-typeahead__option');
+      if (suggestion) {
+        suggestion.scrollIntoView({ block: "center" });
+        await delay(300);
+        suggestion.click();
+        console.log(`🎯 Selected: "${value}"`);
+      } else {
+        console.warn(`⚠️ No match for "${value}"`);
+      }
+
+      await delay(1000);
+    }
+  };
+
+  const applyMultiFilter = async (items, label, ariaLabel, triggerText) => {
+    for (const item of items) {
+      const labelEl = [...document.querySelectorAll("label.search-reusables__value-label")].find(lbl => lbl.innerText.trim().toLowerCase().includes(item.toLowerCase()));
+
+      if (labelEl) {
+        const id = labelEl.getAttribute("for");
+        const checkbox = document.getElementById(id);
+        if (checkbox && !checkbox.checked) {
+          labelEl.click();
+          console.log(`☑️ Clicked label: "${item}"`);
+          await delay(1000);
+        }
+      } else {
+        console.log(`🔍 Searching for: "${item}"`);
+        await typeAndSelect(ariaLabel, [item], triggerText);
+      }
+    }
+  };
+
+  const applyAuthorKeyword = async keyword => {
+    const keywordSection = [...document.querySelectorAll('li.search-reusables__secondary-filters-filter')].find(el => el.innerText.includes("Author Keywords"));
+    if (!keywordSection) return console.warn("❌ Author Keywords section not found.");
+
+    const input = keywordSection.querySelector('input[type="text"]');
+    if (!input) return console.warn("❌ Author Keywords input box missing.");
+
+    input.focus();
+    input.value = '';
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    await delay(300);
+
+    for (let i = 0; i < keyword.length; i++) {
+      input.value = keyword.substring(0, i + 1);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await delay(80);
+    }
+
+    console.log(`📝 Typed author keyword: "${keyword}"`);
+    await delay(1000);
+  };
+
+  const finalizeFilters = () => {
+    const btn = [...document.querySelectorAll("button")].find(btn => /show results/i.test(btn.innerText));
+    if (btn) {
+      btn.click();
+      console.log("🚀 Show results clicked");
+    } else {
+      console.warn("❌ 'Show results' button not found");
+    }
+  };
+
+  // 🧠 Apply All Filters
+  await openFiltersPanel();
+  await selectOption("Sort by", FILTERS.sortBy);
+  await selectOption("Date posted", FILTERS.datePosted);
+  await selectOption("Content type", FILTERS.contentType);
+  await selectOption("Posted by", FILTERS.postedBy);
+
+  await applyMultiFilter(FILTERS.people, "People", "Add a person's name", "Add a person's name");
+  await applyMultiFilter(FILTERS.companies, "Companies", "Add a company's name", "Add a company's name");
+
+  for (const keyword of FILTERS.authorKeywords) {
+    await applyAuthorKeyword(keyword);
+  }
+
+  finalizeFilters();
+})();
