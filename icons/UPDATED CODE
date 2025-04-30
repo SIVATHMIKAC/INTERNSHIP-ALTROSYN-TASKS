@@ -1,0 +1,155 @@
+(async () => {
+  const sleep = ms => new Promise(res => setTimeout(res, ms));
+
+  const filters = {
+    sortBy: "Latest",
+    datePosted: "Past week",
+    contentType: "Images",
+    postedBy: "People you follow",
+    fromMembers: ["Nourhan Mohamed", "Hosein Obeid"],
+    fromCompanies: ["ATA Animation Studio", "Atoll Estates"],
+    mentioningMembers: ["Sundar Pichai"],
+    mentioningCompanies: ["Google"],
+    authorIndustry: ["Information Technology"],
+    authorCompany: ["Microsoft"],
+    authorTitle: ["Senior Engineer"],
+    language: ["English"],
+    engagementType: ["Comments"],
+    location: ["India"],
+    connections: ["2nd degree connections"],
+    authorKeyword: "3D Environment artist"
+  };
+
+  const filterButton = document.querySelector('button[aria-label*="Show all filters"]');
+  if (filterButton) {
+    filterButton.click();
+    await sleep(1500);
+  } else {
+    console.warn("❌ 'Show all filters' button not found");
+    return;
+  }
+
+  async function applyCheckbox(group, option) {
+    try {
+      const fieldset = [...document.querySelectorAll('fieldset')]
+        .find(f => f.innerText.includes(group));
+      if (!fieldset) return console.warn(`❌ Fieldset not found: ${group}`);
+
+      const label = [...fieldset.querySelectorAll('label')]
+        .find(l => l.innerText.includes(option));
+      if (!label) return console.warn(`❌ Option not found: "${option}" in "${group}"`);
+
+      label.click();
+      console.log(`✅ Selected "${option}" in "${group}"`);
+      await sleep(1000);
+    } catch (err) {
+      console.error(`⚠️ Error in applyCheckbox: ${group}/${option}`, err);
+    }
+  }
+
+  await applyCheckbox("Sort by", filters.sortBy);
+  await applyCheckbox("Date posted", filters.datePosted);
+  await applyCheckbox("Content type", filters.contentType);
+  await applyCheckbox("Posted by", filters.postedBy);
+
+  let applyCounter = 0;
+
+  async function applySearchField(ariaLabel, values, triggerText = null) {
+    if (triggerText) {
+      const triggerBtn = [...document.querySelectorAll('button')]
+        .find(b => b.innerText.trim() === triggerText);
+      if (triggerBtn) {
+        triggerBtn.click();
+        console.log(`🟢 Clicked trigger: "${triggerText}"`);
+        await sleep(1000);
+      }
+    }
+
+    for (const value of values) {
+      const input = document.querySelector(`input[aria-label="${ariaLabel}"]`);
+      if (!input) {
+        console.warn(`❌ Input not found for aria-label "${ariaLabel}"`);
+        continue;
+      }
+
+      input.focus();
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(300);
+
+      for (let i = 0; i < value.length; i++) {
+        input.value = value.substring(0, i + 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await sleep(80);
+      }
+
+      await sleep(1000);
+
+      const suggestion = document.querySelector('[role="listbox"] li, [role="option"], .autocomplete-item, .basic-typeahead__option');
+      if (suggestion) {
+        suggestion.scrollIntoView({ block: 'center' });
+        await sleep(300);
+        suggestion.click();
+        console.log(`✅ Selected suggestion for "${value}"`);
+      } else {
+        console.warn(`❌ No suggestion found for "${value}"`);
+      }
+
+      applyCounter++;
+      if (applyCounter % 2 === 0) {
+        console.log(`⏱️ Waiting extra after ${applyCounter} selections...`);
+        await sleep(3000);
+      }
+    }
+  }
+
+  // Apply all filters
+  await applySearchField("Add a person's name", filters.fromMembers, "Add a person's name");
+  await applySearchField("Add a company", filters.fromCompanies, "Add a company");
+  await applySearchField("Mention a member", filters.mentioningMembers, "Mention a member");
+  await applySearchField("Mention a company", filters.mentioningCompanies, "Mention a company");
+  await applySearchField("Add industry", filters.authorIndustry, "Author industry");
+  await applySearchField("Add a company name", filters.authorCompany, "Author company");
+  await applySearchField("Add a title", filters.authorTitle, "Title");
+  await applySearchField("Add a language", filters.language, "Language");
+  await applySearchField("Choose engagement type", filters.engagementType, "Engagement type");
+  await applySearchField("Add a location", filters.location, "Location");
+  await applySearchField("Choose connection level", filters.connections, "Connections");
+
+  // Author Keyword
+  const authorSection = [...document.querySelectorAll('li.search-reusables__secondary-filters-filter')]
+    .find(el => el.innerText.includes("Author Keywords"));
+
+  if (authorSection) {
+    const input = authorSection.querySelector('input[type="text"]');
+    if (input) {
+      input.focus();
+      input.value = '';
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(300);
+
+      for (let i = 0; i < filters.authorKeyword.length; i++) {
+        input.value = filters.authorKeyword.substring(0, i + 1);
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        await sleep(80);
+      }
+
+      console.log(`✅ Typed '${filters.authorKeyword}' into Author Keywords`);
+    } else {
+      console.warn("❌ Input box not found inside 'Author Keywords'.");
+    }
+  } else {
+    console.warn("❌ 'Author Keywords' section not found.");
+  }
+
+  // Show results
+  const showBtn = [...document.querySelectorAll('button')]
+    .find(b => /show results/i.test(b.innerText));
+  if (showBtn) {
+    showBtn.click();
+    console.log("🚀 Show results clicked");
+    await sleep(5000);
+  } else {
+    console.warn("❌ 'Show results' button not found");
+  }
+})();
