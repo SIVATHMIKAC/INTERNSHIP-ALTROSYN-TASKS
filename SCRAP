@@ -1,0 +1,70 @@
+function scrapeLinkedInFeedData() {
+    const postData = [];
+    const posts = document.querySelectorAll('.scaffold-finite-scroll__content > div');
+
+    posts.forEach((post, idx) => {
+        try {
+            // Retrieve content of the post
+            const postText = post.querySelector('.update-components-text')?.innerText.trim() || "";
+
+            // Extract author information
+            const authorElement = post.querySelector('span.feed-shared-actor__name');
+            const author = authorElement ? authorElement.innerText.trim() : "";
+
+            const roleElement = post.querySelector('span.feed-shared-actor__description');
+            const role = roleElement ? roleElement.innerText.trim() : "";
+
+            const profileLinkElement = post.querySelector('a.feed-shared-actor__container-link');
+            const profileLink = profileLinkElement ? profileLinkElement.href : "";
+
+            // Get post date
+            const postDate = post.querySelector('span.feed-shared-actor__sub-description span.visually-hidden')?.innerText || "";
+
+            // Buttons data (like and send)
+            const likeBtn = post.querySelector('button[aria-label*="Like"]');
+            const likeBtnId = likeBtn ? likeBtn.id : "";
+
+            const sendBtn = post.querySelector('button[aria-label*="Send"]');
+            const sendBtnId = sendBtn ? sendBtn.id : "";
+
+            // Comments information
+            const commentList = [];
+            const commentElements = post.querySelectorAll('.comments-comment-item');
+            commentElements.forEach(comment => {
+                const commenter = comment.querySelector('.comments-post-meta__name-text')?.innerText.trim() || "";
+                const commentText = comment.querySelector('.comments-comment-item__main-content')?.innerText.trim() || "";
+                commentList.push({ commenter, commentText });
+            });
+
+            const postId = `post-${idx + 1}`;
+            const authorId = `author-${idx + 1}`;
+
+            // Collecting all extracted details into a single object
+            const postDetails = {
+                postId: postId,
+                authorId: authorId,
+                authorName: author,
+                authorRole: role,
+                authorProfileLink: profileLink,
+                content: postText,
+                likeBtnId: likeBtnId,
+                sendBtnId: sendBtnId,
+                postDate: postDate,
+                comments: commentList,
+                status: "active",
+                source: "LinkedIn Feed",
+                timestamp: new Date().toISOString()
+            };
+
+            postData.push(postDetails);
+        } catch (error) {
+            console.error(`Error processing post ${idx + 1}:`, error);
+        }
+    });
+
+    // Store the collected data in localStorage
+    localStorage.setItem("linkedin_feed_posts", JSON.stringify(postData, null, 2));
+    console.log("LinkedIn posts data has been saved in localStorage.");
+}
+
+scrapeLinkedInFeedData();
