@@ -1,0 +1,485 @@
+// Integration of AgentLink UI into LinkedIn Messaging Extension
+
+// Main IIFE Wrapper
+(function() {
+  // First define the loadLiveLog function before using it
+  const loadLiveLog = () => {
+      return new Promise((resolve) => {
+          if (window.createLiveLog && window.updateLiveLog) {
+              resolve();
+              return;
+          }
+
+          const script = document.createElement('script');
+          script.src = chrome.runtime.getURL('livelog.js');
+          script.onload = resolve;
+          (document.head || document.documentElement).appendChild(script);
+      });
+  };
+
+  // Main initialization function
+  async function initialize() {
+    // Only run on LinkedIn profile pages
+    if (!window.location.href.includes('linkedin.com/in/')) {
+      return;
+    }
+
+    // Load live log first
+    await loadLiveLog();
+    createLiveLog();
+    updateLiveLog('Ready to message profiles', 0);
+
+    let isInitialized = false;
+    let lastUrl = window.location.href;
+
+    // Initialize the AgentLink UI instead of the old button container
+    async function initializeAgentLinkButtons() {
+      if (isInitialized) return;
+      updateLiveLog('Initializing AgentLink messaging buttons', 1);
+      
+      // Wait for page to settle
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Check if button already exists
+      if (document.getElementById('agentlink-messaging-buttons')) {
+          return;
+      }
+
+      const { buttonConfigs = [] } = await chrome.storage.local.get(['buttonConfigs']);
+      if (!buttonConfigs.length) {
+        updateLiveLog('No button configs found', 0);
+        return;
+      }
+
+      // Create container for buttons with AgentLink styling
+      const buttonContainer = createAgentLinkContainer();
+
+      // Try each insertion point until successful
+      const insertionPoints = [
+          '.pv-top-card-v2-ctas__custom',
+          '.YVhLlvSJKxRQbVgJhjXUSVtLCKzCemxlsHsfhw',
+          '.pvs-profile-actions',
+          '.ph5.pb5',
+          '.scaffold-layout__main'
+      ];
+
+      let inserted = false;
+      for (const selector of insertionPoints) {
+          const targetElement = document.querySelector(selector);
+          if (targetElement) {
+              // Insert after the target element
+              targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling);
+              inserted = true;
+              break;
+          }
+      }
+
+      if (!inserted) {
+        updateLiveLog('Could not find insertion point', 0);
+        console.warn('Could not find suitable insertion point for AgentLink buttons');
+        return;
+      }
+
+      // Create buttons from config with AgentLink styling
+      buttonConfigs.forEach(config => {
+          const button = createAgentLinkButton(config);
+          buttonContainer.appendChild(button);
+      });
+
+      // Add mutation observer to handle dynamic page changes
+      const observer = new MutationObserver((mutations) => {
+          if (!document.getElementById('agentlink-messaging-buttons')) {
+              initializeAgentLinkButtons();
+          }
+      });
+
+      observer.observe(document.body, {
+          childList: true,
+          subtree: true
+      });
+
+      isInitialized = true;
+      updateLiveLog('AgentLink messaging buttons initialized', 0);
+    }
+
+    // Create a container with AgentLink styling
+    function createAgentLinkContainer() {
+      const container = document.createElement('div');
+      container.id = 'agentlink-messaging-buttons';
+      Object.assign(container.style, {
+          display: 'flex',
+          gap: '12px',
+          padding: '16px',
+          margin: '16px 0 0 0',
+          borderRadius: '12px',
+          background: 'linear-gradient(to right, rgba(77, 124, 254, 0.1), rgba(159, 122, 234, 0.1))',
+          border: '1px solid rgba(159, 122, 234, 0.3)',
+          overflowX: 'auto',
+          flexWrap: 'wrap'
+      });
+
+      // Add AgentLink branding
+      const brandContainer = document.createElement('div');
+      brandContainer.className = 'agentlink-powered';
+      brandContainer.style.display = 'flex';
+      brandContainer.style.alignItems = 'center';
+      brandContainer.style.marginBottom = '12px';
+      brandContainer.style.width = '100%';
+      
+      brandContainer.innerHTML = `
+          <span style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border:none;border-radius:8px;color:white;font-weight:500;">
+              <svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'>
+                  <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <rect width='16' height='12' x='4' y='8' rx='2' stroke='white' stroke-width='2'/>
+                  <path d='M2 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M20 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M15 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M9 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+              </svg>
+              <span>Powered by AgentLink</span>
+          </span>
+      `;
+      
+      container.appendChild(brandContainer);
+      return container;
+    }
+
+    // Create a button with AgentLink styling
+    function createAgentLinkButton(config) {
+      const button = document.createElement('button');
+      button.textContent = config.name || config.label || 'Template';
+      Object.assign(button.style, {
+          background: 'linear-gradient(to right, #4d7cfe, #9f7aea)',
+          color: '#ffffff',
+          border: 'none',
+          padding: '10px 18px',
+          borderRadius: '8px',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          transition: 'all 0.3s ease',
+          minWidth: '120px',
+          textAlign: 'center',
+          flexShrink: '0',
+          whiteSpace: 'nowrap',
+          boxShadow: '0 2px 5px rgba(159, 122, 234, 0.3)'
+      });
+
+      button.addEventListener('mouseover', () => {
+          button.style.transform = 'translateY(-2px)';
+          button.style.boxShadow = '0 4px 8px rgba(159, 122, 234, 0.5)';
+      });
+      
+      button.addEventListener('mouseout', () => {
+          button.style.transform = 'translateY(0)';
+          button.style.boxShadow = '0 2px 5px rgba(159, 122, 234, 0.3)';
+      });
+
+      button.addEventListener('click', async () => {
+          if (button.disabled) return;
+          
+          button.disabled = true;
+          button.style.opacity = '0.6';
+          button.style.cursor = 'not-allowed';
+          
+          try {
+              updateLiveLog(`Starting ${config.name} message`, 0);
+              const profileData = await getProfileDataWithCache();
+              const aiSettings = await getAISettings();
+              
+              updateLiveLog('Generating AI message', 2);
+              const response = await chrome.runtime.sendMessage({
+                  action: "generateMessage",
+                  profileData,
+                  config,
+                  aiSettings
+              });
+              
+              updateLiveLog('Opening message window', 1);
+              await clickMessageButton();
+              await new Promise(resolve => setTimeout(resolve, 3000));
+
+              updateLiveLog('Inserting message', 2);
+              await insertMessageWithAgentLink(response.message, profileData);
+
+              updateLiveLog('Message ready to send!', 1);
+          } catch (error) {
+              console.error(error);
+              updateLiveLog(`Error: ${error.message}`, 0);
+          } finally {
+              button.disabled = false;
+              button.style.opacity = '1';
+              button.style.cursor = 'pointer';
+          }
+      });
+
+      return button;
+    }
+
+    // Enhanced insert message function with AgentLink branding
+    async function insertMessageWithAgentLink(message, profileData) {
+      updateLiveLog('⌨️ Inserting message with AgentLink branding...', 1);
+
+      return new Promise((resolve, reject) => {
+          let chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+          if (chatWindows.length > 0) {
+              processChatWindow(chatWindows[chatWindows.length - 1]);
+              return;
+          }
+
+          const observer = new MutationObserver(() => {
+              chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+              if (chatWindows.length === 0) return;
+
+              observer.disconnect();
+              processChatWindow(chatWindows[chatWindows.length - 1]);
+          });
+
+          observer.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              characterData: true
+          });
+
+          setTimeout(() => {
+              observer.disconnect();
+              updateLiveLog('❌ Timeout reached. No chat window found!', 'error');
+              reject(new Error('Chat window not found'));
+          }, 5000);
+
+          async function processChatWindow(lastChatWindow) {
+              console.log('Target chat window:', lastChatWindow);
+
+              // Remove the typing indicator if it exists
+              const typingIndicator = lastChatWindow.querySelector('.msg-s-message-list__typing-indicator-container--without-seen-receipt');
+              if (typingIndicator) {
+                  typingIndicator.remove();
+              }
+
+              const chatBoxNameElement = lastChatWindow.querySelector('a.profile-card-one-to-one__profile-link .truncate');
+              const chatBoxName = chatBoxNameElement ? chatBoxNameElement.innerText.trim() : '';
+
+              const extractedProfileName = typeof profileData.name === 'object'
+                  ? JSON.stringify(profileData.name)
+                  : String(profileData.name).trim();
+
+              console.log('Extracted Profile Name:', extractedProfileName);
+              console.log('Chat Box Name:', chatBoxName);
+
+              if (extractedProfileName && chatBoxName && extractedProfileName !== chatBoxName) {
+                  console.error(`❌ Profile name (${extractedProfileName}) does not match chat box name (${chatBoxName})`);
+                  updateLiveLog('❌ Profile name does not match chat box name!', 'error');
+                  reject(new Error('Profile name mismatch'));
+                  return;
+              }
+
+              const messageBox = lastChatWindow.querySelector('.msg-form__contenteditable');
+              if (messageBox) {
+                  messageBox.focus();
+                  messageBox.click();
+
+                  // Clear the chatbox content first
+                  messageBox.innerHTML = '';
+                  messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+
+                  // Insert message text
+                  document.execCommand("insertText", false, message);
+                  messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+                  
+                  // Add AgentLink badge to the message interface
+                  injectAgentLinkButton(messageBox);
+
+                  updateLiveLog('✅ Message with AgentLink branding inserted successfully!');
+                  resolve(true);
+              } else {
+                  console.log('❌ Message box not found.');
+                  reject(new Error('Message box not found'));
+              }
+          }
+      });
+    }
+
+    // Inject the AgentLink button below the message box
+    function injectAgentLinkButton(messageBox) {
+      // Avoid duplicates
+      if (messageBox.parentNode.querySelector('.agentlink-powered')) return;
+      
+      const container = document.createElement('div');
+      container.className = 'agentlink-powered';
+      container.style.display = 'flex';
+      container.style.alignItems = 'center';
+      container.style.gap = '8px';
+      container.style.marginTop = '10px';
+      
+      const button = document.createElement('button');
+      button.innerHTML = `
+          <span style="display:flex;align-items:center;gap:6px;padding:6px 12px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border:none;border-radius:8px;color:white;font-weight:500;cursor:pointer;">
+              <svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none'>
+                  <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <rect width='16' height='12' x='4' y='8' rx='2' stroke='white' stroke-width='2'/>
+                  <path d='M2 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M20 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M15 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                  <path d='M9 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+              </svg>
+              <span>Powered by AgentLink</span>
+          </span>
+      `;
+      button.style.background = 'none';
+      button.style.border = 'none';
+      button.style.padding = '0';
+      button.style.cursor = 'pointer';
+      
+      // Custom action when clicked
+      button.onclick = () => {
+        window.open('https://agentlink.ai', '_blank');
+      };
+      
+      container.appendChild(button);
+      messageBox.parentNode.insertBefore(container, messageBox.nextSibling);
+    }
+
+    // Rest of your existing functions
+    async function getProfileDataWithCache() {
+      updateLiveLog('Checking profile data cache', 0);
+      const currentUrl = window.location.href.split('?')[0]; // Remove query params
+      const cacheKey = `profileData_${currentUrl}`;
+      
+      // Try to get cached data first
+      const { [cacheKey]: cachedData } = await chrome.storage.local.get(cacheKey);
+      
+      if (cachedData) {
+       updateLiveLog("Using cached profile data", 0);
+        return cachedData;
+      }
+      
+      // If no cache, scrape fresh data
+      updateLiveLog("Gathering fresh profile data", 2);
+      const profileData = await gatherCompleteProfileData();
+      
+      // Store in cache with timestamp
+      const dataToCache = {
+        ...profileData,
+        _cachedAt: Date.now()
+      };
+      
+      await chrome.storage.local.set({ [cacheKey]: dataToCache });
+      
+      // Set expiration (24 hours)
+      setTimeout(async () => {
+        await chrome.storage.local.remove(cacheKey);
+      }, 24 * 60 * 60 * 1000);
+      
+      return profileData;
+    }
+
+    // Enhanced SPA navigation detection
+    function setupSPANavigationObserver() {
+      // Observer for DOM changes
+      const domObserver = new MutationObserver(function() {
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeAgentLinkButtons();
+        }
+      });
+
+      // Observer for URL changes (for pushState/replaceState)
+      const urlObserver = new MutationObserver(function() {
+        if (window.location.href !== lastUrl && window.location.href.includes('linkedin.com/in/')) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeAgentLinkButtons();
+        }
+      });
+
+      // Observe body for DOM changes
+      domObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      // Observe title element for URL changes (LinkedIn updates this during navigation)
+      const titleElement = document.querySelector('title');
+      if (titleElement) {
+        urlObserver.observe(titleElement, {
+          childList: true
+        });
+      }
+
+      // Listen for history changes
+      const pushState = history.pushState;
+      const replaceState = history.replaceState;
+
+      history.pushState = function() {
+        pushState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeAgentLinkButtons();
+        }
+      };
+
+      history.replaceState = function() {
+        replaceState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeAgentLinkButtons();
+        }
+      };
+
+      window.addEventListener('beforeunload', () => {
+        domObserver.disconnect();
+        urlObserver.disconnect();
+      });
+    }
+
+    // Click Message Button
+    async function clickMessageButton() {
+      updateLiveLog('🔍 Looking for message button...', 1);
+
+      const messageButton = document.querySelector('button[aria-label*="Message"]');
+      if (!messageButton) {
+        updateLiveLog('❌ Message button not found!', 'error');
+          throw new Error("Message button not found");
+      }
+
+      messageButton.click();
+      updateLiveLog('✅ Message dialog opened', 1);
+      return true;
+    }
+
+    // Initial setup - call our new initialization function instead of the old one
+    initializeAgentLinkButtons();
+    setupSPANavigationObserver();
+
+    // Fallback check after 3 seconds
+    setTimeout(() => {
+      if (!isInitialized) {
+        updateLiveLog('Running fallback initialization', 0);
+        initializeAgentLinkButtons();
+      }
+    }, 3000);
+
+    // Additional fallback - check every 2 seconds for SPA navigation
+    setInterval(() => {
+      if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+        updateLiveLog('Detected profile page change', 0);
+        lastUrl = window.location.href;
+        isInitialized = false;
+        initializeAgentLinkButtons();
+      }
+    }, 2000);
+  }
+
+  // Start the main function
+  initialize().catch(error => {
+    console.error("Initialization error:", error);
+  });
+
+  // Include your existing helper functions here (gatherCompleteProfileData, etc.)
+  // ...
+
+})();
