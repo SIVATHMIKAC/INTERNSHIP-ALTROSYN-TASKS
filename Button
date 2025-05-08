@@ -1,0 +1,211 @@
+// Button CSS Styles
+const buttonStyles = `
+.comment-btn {
+    position: relative;
+    overflow: hidden;
+    background: #ffffff;
+    color: rgb(0, 51, 204);
+    border: 1px solid rgb(0, 51, 204);
+    padding: 5px 10px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: normal;
+    cursor: pointer;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: unset;
+    text-align: center;
+    transition: all 0.4s ease;
+}
+
+.comment-btn:hover {
+    background: rgb(0, 51, 204);
+    color: #ffffff;
+}
+
+.comment-btn:active {
+    transform: scale(0.98);
+}
+
+.comment-btn::after {
+    content: '';
+    position: absolute;
+    top: var(--y);
+    left: var(--x);
+    width: 0;
+    height: 0;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+}
+
+.comment-btn.active::after {
+    width: 200px;
+    height: 200px;
+    opacity: 1;
+    transition: width 0.5s ease-out, height 0.5s ease-out, opacity 1s ease;
+}
+
+.comment-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    background: #24268d;
+    border: 1px solid #24268d;
+    color: #ffffff;
+}`;
+
+// Button Container CSS
+const containerStyles = `
+.dynamic-comment-buttons {
+    border: 1px solid #24268d;
+    border-radius: 12px;
+    padding: 10px;
+    margin: 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    box-shadow: 0 0 8px rgba(100, 149, 237, 0.2);
+    overflow-x: auto;
+    background: #ffffff;
+    justify-content: flex-start;
+}
+
+.dynamic-comment-buttons, .comment-btn {
+    box-sizing: border-box;
+}`;
+
+// Button Creation
+function createButton(config, onClick) {
+    const button = document.createElement('button');
+    button.className = 'comment-btn';
+    button.textContent = config.name;
+    button.setAttribute('data-original-text', config.name);
+    
+    // Add ripple effect listener
+    button.addEventListener('click', function(e) {
+        const rect = this.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        this.style.setProperty('--x', x + 'px');
+        this.style.setProperty('--y', y + 'px');
+        
+        this.classList.add('active');
+        
+        setTimeout(() => {
+            this.classList.remove('active');
+        }, 1000);
+        
+        onClick();
+    });
+    
+    return button;
+}
+
+// Container Creation
+function createButtonContainer() {
+    const container = document.createElement('div');
+    container.className = 'dynamic-comment-buttons';
+    
+    return container;
+}
+
+// AgentLink Branding Footer
+function createAgentLinkBranding() {
+    const powered = document.createElement('div');
+    powered.style.width = '100%';
+    powered.style.borderTop = '1px solid #e5e7eb';
+    powered.style.paddingTop = '8px';
+    powered.style.display = 'flex';
+    powered.style.alignItems = 'center';
+    powered.style.justifyContent = 'center';
+    powered.style.gap = '6px';
+    powered.style.fontSize = '14px';
+    powered.style.color = '#24268d';
+    powered.innerHTML = `
+    <span style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border-radius:5px;">
+        <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'>
+        <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        <rect width='16' height='12' x='4' y='8' rx='2' stroke='white' stroke-width='2'/>
+        <path d='M2 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        <path d='M20 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        <path d='M15 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        <path d='M9 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        </svg>
+    </span>
+    <span style="font-weight:500;">Powered by AgentLink</span>
+    `;
+    return powered;
+}
+
+// Loading Indicator
+function createLoadingIndicator() {
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'ai-loading-container';
+    loadingContainer.style.display = 'flex';
+    loadingContainer.style.alignItems = 'center';
+    loadingContainer.style.justifyContent = 'space-between';
+    loadingContainer.style.width = '100%';
+    loadingContainer.style.padding = '10px';
+    
+    const loadingMessage = document.createElement('div');
+    loadingMessage.className = 'ai-loading-message';
+    loadingMessage.textContent = '🤖 AgentLink is generating your comment...';
+    
+    const stopButton = document.createElement('button');
+    stopButton.className = 'stop-button';
+    stopButton.innerHTML = '✕ Stop';
+    stopButton.style.marginLeft = '10px';
+    stopButton.style.padding = '3px 8px';
+    stopButton.style.fontSize = '12px';
+    stopButton.style.background = '#ffebee';
+    stopButton.style.color = '#c62828';
+    stopButton.style.border = '1px solid #ef9a9a';
+    stopButton.style.borderRadius = '4px';
+    stopButton.style.cursor = 'pointer';
+    stopButton.style.transition = 'all 0.2s';
+    
+    stopButton.onmouseover = () => {
+        stopButton.style.background = '#ffcdd2';
+    };
+    stopButton.onmouseout = () => {
+        stopButton.style.background = '#ffebee';
+    };
+    
+    loadingContainer.appendChild(loadingMessage);
+    loadingContainer.appendChild(stopButton);
+    
+    return { loadingContainer, loadingMessage, stopButton };
+}
+
+// Example of how to use these components:
+function example() {
+    // Add styles to the document
+    const style = document.createElement('style');
+    style.textContent = buttonStyles + containerStyles;
+    document.head.appendChild(style);
+    
+    // Create container
+    const container = createButtonContainer();
+    
+    // Create button
+    const button = createButton({name: "Generate Reply"}, () => {
+        console.log("Button clicked!");
+    });
+    
+    // Add button to container
+    container.appendChild(button);
+    
+    // Add AgentLink branding
+    container.appendChild(createAgentLinkBranding());
+    
+    // Add container to the page
+    document.body.appendChild(container);
+    
+    // Example of showing loading state
+    const { loadingContainer, stopButton } = createLoadingIndicator();
+    stopButton.onclick = () => console.log("Stop clicked");
+    container.appendChild(loadingContainer);
+}
