@@ -91,6 +91,32 @@
     .dynamic-comment-buttons, .comment-btn {
         box-sizing: border-box;
     }
+    
+    .ai-loading-message {
+        animation: pulse 1.5s infinite;
+        font-size: 14px;
+        margin: 10px 0;
+    }
+    @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+    }
+
+    .ai-loading-container {
+        animation: fadeIn 0.3s ease-out;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: #f5f5f5;
+        margin-bottom: 10px;
+    }
+    .ai-loading-message {
+        font-size: 14px;
+        color: #424242;
+    }
+    .stop-button:hover {
+        background: #ffcdd2 !important;
+    }
     `;
     document.head.appendChild(style);
   };
@@ -124,7 +150,12 @@
   }
 
   // Loading Indicator
-  function createLoadingIndicator() {
+  function createLoadingIndicator(buttons, container) {
+      // Create abort controller for cancellation
+      const abortController = new AbortController();
+      let isCancelled = false;
+
+      // Hide all buttons and show loading message with stop button
       const loadingContainer = document.createElement('div');
       loadingContainer.className = 'ai-loading-container';
       loadingContainer.style.display = 'flex';
@@ -132,11 +163,11 @@
       loadingContainer.style.justifyContent = 'space-between';
       loadingContainer.style.width = '100%';
       loadingContainer.style.padding = '10px';
-      
+
       const loadingMessage = document.createElement('div');
       loadingMessage.className = 'ai-loading-message';
-      loadingMessage.textContent = '🤖 AgentLink is generating your message...';
-      
+      loadingMessage.textContent = '🤖 AgentLink is generating your comment...';
+
       const stopButton = document.createElement('button');
       stopButton.className = 'stop-button';
       stopButton.innerHTML = '✕ Stop';
@@ -149,18 +180,39 @@
       stopButton.style.borderRadius = '4px';
       stopButton.style.cursor = 'pointer';
       stopButton.style.transition = 'all 0.2s';
-      
+
       stopButton.onmouseover = () => {
           stopButton.style.background = '#ffcdd2';
       };
       stopButton.onmouseout = () => {
           stopButton.style.background = '#ffebee';
       };
-      
+
+      stopButton.onclick = () => {
+          isCancelled = true;
+          abortController.abort();
+          loadingMessage.textContent = '⏹️ Stopping generation...';
+          stopButton.disabled = true;
+      };
+
       loadingContainer.appendChild(loadingMessage);
       loadingContainer.appendChild(stopButton);
+
+      // Hide all buttons
+      buttons.forEach(btn => {
+          btn.style.display = 'none';
+      });
+
+      // Insert loading container
+      container.insertBefore(loadingContainer, container.firstChild);
       
-      return { loadingContainer, loadingMessage, stopButton };
+      return { 
+          loadingContainer, 
+          loadingMessage, 
+          stopButton, 
+          abortController, 
+          isCancelled 
+      };
   }
 
   (async function() {
@@ -302,21 +354,58 @@
                   const profileData = await getProfileDataWithCache();
                   const aiSettings = await getAISettings();
                   
-                  updateLiveLog('Generating AI message', 2);
-                  const response = await chrome.runtime.sendMessage({
-                      action: "generateMessage",
-                      profileData,
-                      config,
-                      aiSettings
-                  });
+                  // Show loading indicator
+                  const buttons = Array.from(buttonContainer.querySelectorAll('.comment-btn'));
+                  const { loadingContainer, loadingMessage, stopButton, abortController, isCancelled } = 
+                      createLoadingIndicator(buttons, buttonContainer);
                   
-                  updateLiveLog('Opening message window', 1);
-                  await clickMessageButton();
-                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  try {
+                      updateLiveLog('Generating AI message', 2);
+                      const response = await chrome.runtime.sendMessage({
+                          action: "generateMessage",
+                          profileData,
+                          config,
+                          aiSettings,
+                          signal: abortController.signal
+                      });
+                      
+                      if (isCancelled) {
+                          loadingMessage.textContent = '❌ Generation cancelled';
+                          return;
+                      }
+                      
+                      updateLiveLog('Opening message window', 1);
+                      await clickMessageButton();
+                      await new Promise(resolve => setTimeout(resolve, 3000));
 
-                  updateLiveLog('Inserting message', 2);
-                  await insertMessage(response.message, profileData);
+                      if (isCancelled) {
+                          loadingMessage.textContent = '❌ Generation cancelled';
+                          return;
+                      }
 
+                      updateLiveLog('Inserting message', 2);
+                      await insertMessage(response.message, profileData);
+
+                      loadingMessage.textContent = '✅ Message ready to send!';
+                      stopButton.style.display = 'none';
+                  } catch (error) {
+                      if (error.name === 'AbortError') {
+                          loadingMessage.textContent = '❌ Generation cancelled';
+                      } else {
+                          console.error(error);
+                          loadingMessage.textContent = `❌ Error: ${error.message}`;
+                          updateLiveLog(`Error: ${error.message}`, 0);
+                      }
+                  } finally {
+                      // Remove loading container after delay
+                      setTimeout(() => {
+                          buttonContainer.removeChild(loadingContainer);
+                          buttons.forEach(btn => {
+                              btn.style.display = '';
+                          });
+                      }, 2000);
+                  }
+                  
                   updateLiveLog('Message ready to send!', 1);
               } catch (error) {
                   console.error(error);
@@ -946,8 +1035,7 @@
             if (messageBox) {
                 messageBox.focus();
                 messageBox.click();
-
-                // Clear the chatbox content first
+// Clear the chatbox content first
                 messageBox.innerHTML = '';
                 messageBox.dispatchEvent(new Event("input", { bubbles: true }));
 
