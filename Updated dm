@@ -190,9 +190,11 @@
 
       stopButton.onclick = () => {
           isCancelled = true;
-          abortController.abort();
+          abortController.abort('User requested cancellation');
           loadingMessage.textContent = '⏹️ Stopping generation...';
           stopButton.disabled = true;
+          stopButton.style.cursor = 'not-allowed';
+          stopButton.style.opacity = '0.7';
       };
 
       loadingContainer.appendChild(loadingMessage);
@@ -372,11 +374,16 @@
                           config,
                           aiSettings,
                           signal: abortController.signal
+                      }).catch(err => {
+                          if (err.message.includes('aborted') || err.message.includes('cancelled')) {
+                              throw new Error('Generation cancelled by user');
+                          }
+                          throw err;
                       });
                       
                       if (isCancelled()) {
                           loadingMessage.textContent = '❌ Generation cancelled';
-                          return;
+                          throw new Error('Generation cancelled by user');
                       }
                       
                       updateLiveLog('Opening message window', 1);
@@ -384,7 +391,7 @@
                       
                       if (isCancelled()) {
                           loadingMessage.textContent = '❌ Generation cancelled';
-                          return;
+                          throw new Error('Generation cancelled by user');
                       }
 
                       if (!messageWindowOpened) {
@@ -395,7 +402,7 @@
 
                       if (isCancelled()) {
                           loadingMessage.textContent = '❌ Generation cancelled';
-                          return;
+                          throw new Error('Generation cancelled by user');
                       }
 
                       updateLiveLog('Inserting message', 2);
@@ -404,7 +411,7 @@
                       loadingMessage.textContent = '✅ Message ready to send!';
                       stopButton.style.display = 'none';
                   } catch (error) {
-                      if (error.name === 'AbortError') {
+                      if (error.message.includes('cancelled') || error.message.includes('aborted')) {
                           loadingMessage.textContent = '❌ Generation cancelled';
                           updateLiveLog('Message generation cancelled', 0);
                       } else {
