@@ -371,15 +371,39 @@
                       
                       if (isCancelled) {
                           loadingMessage.textContent = '❌ Generation cancelled';
+                          setTimeout(() => {
+                              buttonContainer.removeChild(loadingContainer);
+                              buttons.forEach(btn => {
+                                  btn.style.display = '';
+                              });
+                          }, 1500);
                           return;
                       }
                       
                       updateLiveLog('Opening message window', 1);
-                      await clickMessageButton();
+                      const messageWindowOpened = await clickMessageButton();
+                      
+                      if (!messageWindowOpened || isCancelled) {
+                          loadingMessage.textContent = '❌ Generation cancelled';
+                          setTimeout(() => {
+                              buttonContainer.removeChild(loadingContainer);
+                              buttons.forEach(btn => {
+                                  btn.style.display = '';
+                              });
+                          }, 1500);
+                          return;
+                      }
+
                       await new Promise(resolve => setTimeout(resolve, 3000));
 
                       if (isCancelled) {
                           loadingMessage.textContent = '❌ Generation cancelled';
+                          setTimeout(() => {
+                              buttonContainer.removeChild(loadingContainer);
+                              buttons.forEach(btn => {
+                                  btn.style.display = '';
+                              });
+                          }, 1500);
                           return;
                       }
 
@@ -399,7 +423,9 @@
                   } finally {
                       // Remove loading container after delay
                       setTimeout(() => {
-                          buttonContainer.removeChild(loadingContainer);
+                          if (loadingContainer.parentNode === buttonContainer) {
+                              buttonContainer.removeChild(loadingContainer);
+                          }
                           buttons.forEach(btn => {
                               btn.style.display = '';
                           });
@@ -603,7 +629,6 @@
     return aiSettings;
   }
 
-
   // Function to extract experience data
   function extractExperienceData() {
     const experienceData = { experience: [] };
@@ -618,7 +643,7 @@
 
             experienceItems.forEach(item => {
                 let texts = [];
-                const allTextElements = item.querySelectorAll('.t-bold, .t-14.t-normal, .t-black--light, strong');
+                const allTextElements = item.querySelectorAll('.t-bold, .t-14.t-normal, .t-black--light, .t-14.t-normal.t-black--light, strong');
 
                 allTextElements.forEach(element => {
                     let text = element.textContent
@@ -697,6 +722,7 @@
         return extractExperienceData();
     }
   }
+
   async function GetAbout() {
     let aboutSection = document.querySelector('#about');
     if (aboutSection) {
@@ -719,7 +745,6 @@
         console.log("About section anchor not found.");
         return "";
     }
-
   }
 
   async function extractBasicProfileInfo() {
@@ -740,7 +765,6 @@
     };
     console.log(obj)
     return obj;
-
   }
 
   async function extractCurrentRole() {
@@ -965,6 +989,7 @@
       isPopupVisible = true;
     }
   }
+
   // Click Message Button
   async function clickMessageButton() {
     updateStatusDetailed('🔍 Looking for message button...');
