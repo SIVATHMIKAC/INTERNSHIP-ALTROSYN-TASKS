@@ -1,0 +1,60 @@
+let liveLogContainer = null;
+let statusElement = null;
+
+function createLiveLog() {
+    if (!liveLogContainer) {
+        // Create main container
+        liveLogContainer = document.createElement('div');
+        liveLogContainer.id = 'live-log-container';
+
+        // Apply simple styles
+        Object.assign(liveLogContainer.style, {
+            position: 'fixed',
+            bottom: '10px',
+            right: '10px',
+            backgroundColor: '#1e1f3b',
+            color: 'white',
+            borderRadius: '4px',
+            padding: '8px 12px',
+            fontFamily: 'Arial, sans-serif',
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.2)',
+            zIndex: '10000',
+            border: '1px solid #3e00ff',
+            fontSize: '13px',
+            maxWidth: '300px',
+            display: 'none' // Hides the container
+        });
+
+        // Create status text
+        statusElement = document.createElement('div');
+        statusElement.id = 'live-log-status';
+        statusElement.textContent = 'Ready';
+        liveLogContainer.appendChild(statusElement);
+
+        document.body.appendChild(liveLogContainer);
+    }
+}
+
+function updateLiveLog(status, waitTime = 0) {
+    if (!liveLogContainer) createLiveLog();
+    
+    statusElement.textContent = status;
+
+    if (waitTime > 0) {
+        let remaining = waitTime;
+        
+        const timerInterval = setInterval(() => {
+            remaining--;
+            
+            if (remaining <= 0) {
+                clearInterval(timerInterval);
+                setTimeout(() => {
+                    statusElement.textContent = 'Completed';
+                    setTimeout(() => {
+                        statusElement.textContent = '';
+                    }, 1000);
+                }, 500);
+            }
+        }, 1000);
+    }
+}
