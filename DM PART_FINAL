@@ -24,7 +24,7 @@ const addStyles = () => {
       background: #ffffff;
       color: rgb(0, 51, 204);
       border: 1px solid rgb(0, 51, 204);
-      padding: 12px;
+      padding: 5px 10px;
       border-radius: 50px;
       font-size: 14px;
       font-weight: normal;
@@ -34,6 +34,8 @@ const addStyles = () => {
       min-width: unset;
       text-align: center;
       transition: all 0.4s ease;
+      margin: 2px;
+      height: 32px;
     }
 
     .comment-btn:hover {
@@ -46,11 +48,23 @@ const addStyles = () => {
     }
 
     .comment-btn::after {
-      display: none; /* Removed the ripple circle effect */
+      content: '';
+      position: absolute;
+      top: var(--y);
+      left: var(--x);
+      width: 0;
+      height: 0;
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      opacity: 0;
     }
 
     .comment-btn.active::after {
-      display: none; /* Removed the ripple circle effect */
+      width: 200px;
+      height: 200px;
+      opacity: 1;
+      transition: width 0.5s ease-out, height 0.5s ease-out, opacity 1s ease;
     }
 
     .comment-btn:disabled {
@@ -74,6 +88,7 @@ const addStyles = () => {
       overflow-x: auto;
       background: #ffffff;
       justify-content: flex-start;
+      margin-bottom: 24px;
     }
 
     .dynamic-comment-buttons, .comment-btn {
@@ -81,34 +96,33 @@ const addStyles = () => {
     }
 
     .ai-loading-message {
-      animation: pulse 1.5s infinite;
       font-size: 14px;
       margin: 10px 0;
-    }
-    @keyframes pulse {
-      0% { opacity: 0.6; }
-      50% { opacity: 1; }
-      100% { opacity: 0.6; }
+      color: #424242;
     }
 
     .ai-loading-container {
-      animation: fadeIn 0.3s ease-out;
       border: 1px solid #e0e0e0;
       border-radius: 8px;
       background: #f5f5f5;
       margin-bottom: 10px;
-    }
-    .ai-loading-message {
-      font-size: 14px;
-      color: #424242;
-    }
-    .stop-button:hover {
-      background: #ffcdd2 !important;
+      padding: 10px;
     }
 
-    /* Hide the status popup by default */
-    #ai-status-popup {
-      display: none !important;
+    .stop-button {
+      margin-left: 10px;
+      padding: 3px 8px;
+      font-size: 12px;
+      background: #ffebee;
+      color: #c62828;
+      border: 1px solid #ef9a9a;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .stop-button:hover {
+      background: #ffcdd2 !important;
     }
   `;
   document.head.appendChild(style);
@@ -118,15 +132,16 @@ const addStyles = () => {
 function createAgentLinkBranding() {
   const powered = document.createElement('div');
   powered.style.width = '100%';
-  powered.style.borderTop = '1px solid #e5e7eb';
-  powered.style.paddingTop = '8px';
+  powered.style.borderTop = '1px solid rgb(229, 231, 235)';
+  powered.style.paddingTop = '10px';
   powered.style.display = 'flex';
   powered.style.alignItems = 'center';
   powered.style.justifyContent = 'center';
   powered.style.gap = '6px';
   powered.style.fontSize = '14px';
-  powered.style.color = '#24268d';
-  powered.innerHTML = `       
+  powered.style.color = 'rgb(36, 38, 141)';
+  powered.style.marginTop = '16px';
+  powered.innerHTML = `
     <span style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border-radius:5px;">
       <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'>
         <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
@@ -144,11 +159,9 @@ function createAgentLinkBranding() {
 
 // Loading Indicator
 function createLoadingIndicator(buttons, container) {
-  // Create abort controller for cancellation
   const abortController = new AbortController();
   let isCancelled = false;
 
-  // Hide all buttons and show loading message with stop button
   const loadingContainer = document.createElement('div');
   loadingContainer.className = 'ai-loading-container';
   loadingContainer.style.display = 'flex';
@@ -164,19 +177,11 @@ function createLoadingIndicator(buttons, container) {
   const stopButton = document.createElement('button');
   stopButton.className = 'stop-button';
   stopButton.innerHTML = '✕ Stop';
-  stopButton.style.marginLeft = '10px';
-  stopButton.style.padding = '3px 8px';
-  stopButton.style.fontSize = '12px';
-  stopButton.style.background = '#ffebee';
-  stopButton.style.color = '#c62828';
-  stopButton.style.border = '1px solid #ef9a9a';
-  stopButton.style.borderRadius = '4px';
-  stopButton.style.cursor = 'pointer';
-  stopButton.style.transition = 'all 0.2s';
-
+  
   stopButton.onmouseover = () => {
     stopButton.style.background = '#ffcdd2';
   };
+  
   stopButton.onmouseout = () => {
     stopButton.style.background = '#ffebee';
   };
@@ -188,8 +193,7 @@ function createLoadingIndicator(buttons, container) {
     stopButton.disabled = true;
     stopButton.style.cursor = 'not-allowed';
     stopButton.style.opacity = '0.7';
-    
-    // Hide loading container after 1 second
+
     setTimeout(() => {
       if (loadingContainer.parentNode) {
         loadingContainer.style.display = 'none';
@@ -203,21 +207,53 @@ function createLoadingIndicator(buttons, container) {
   loadingContainer.appendChild(loadingMessage);
   loadingContainer.appendChild(stopButton);
 
-  // Hide all buttons
   buttons.forEach(btn => {
     btn.style.display = 'none';
   });
 
-  // Insert loading container
   container.insertBefore(loadingContainer, container.firstChild);
-  
-  return { 
-    loadingContainer, 
-    loadingMessage, 
-    stopButton, 
-    abortController, 
-    isCancelled: () => isCancelled 
+
+  return {
+    loadingContainer,
+    loadingMessage,
+    stopButton,
+    abortController,
+    isCancelled: () => isCancelled
   };
+}
+
+// Button Creation with Ripple Effect
+function createButton(config, onClick) {
+  const button = document.createElement('button');
+  button.className = 'comment-btn';
+  button.textContent = config.name || config.label || 'Template';
+  button.setAttribute('data-original-text', config.name);
+  
+  button.addEventListener('click', function(e) {
+    const rect = this.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    this.style.setProperty('--x', x + 'px');
+    this.style.setProperty('--y', y + 'px');
+    
+    this.classList.add('active');
+    
+    setTimeout(() => {
+      this.classList.remove('active');
+    }, 1000);
+    
+    onClick();
+  });
+  
+  return button;
+}
+
+// Container Creation
+function createButtonContainer() {
+  const container = document.createElement('div');
+  container.className = 'dynamic-comment-buttons';
+  return container;
 }
 
 (async function() {
@@ -237,48 +273,41 @@ function createLoadingIndicator(buttons, container) {
   let isInitialized = false;
   let lastUrl = window.location.href;
 
-  // Renamed caching function to avoid conflicts
   async function getProfileDataWithCache() {
     updateLiveLog('Checking profile data cache', 0);
-    const currentUrl = window.location.href.split('?')[0]; // Remove query params
+    const currentUrl = window.location.href.split('?')[0];
     const cacheKey = `profileData_${currentUrl}`;
-    
-    // Try to get cached data first
+
     const { [cacheKey]: cachedData } = await chrome.storage.local.get(cacheKey);
-    
+
     if (cachedData) {
       updateLiveLog("Using cached profile data", 0);
       return cachedData;
     }
-    
-    // If no cache, scrape fresh data
+
     updateLiveLog("Gathering fresh profile data", 2);
     const profileData = await gatherCompleteProfileData();
-    
-    // Store in cache with timestamp
+
     const dataToCache = {
       ...profileData,
       _cachedAt: Date.now()
     };
-    
+
     await chrome.storage.local.set({ [cacheKey]: dataToCache });
-    
-    // Set expiration (24 hours)
+
     setTimeout(async () => {
       await chrome.storage.local.remove(cacheKey);
     }, 24 * 60 * 60 * 1000);
-    
+
     return profileData;
   }
 
   async function initializeQuickReplyButton() {
     if (isInitialized) return;
     updateLiveLog('Initializing quick reply buttons', 1);
-    
-    // Wait for page to settle
+
     await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Check if button already exists
     if (document.getElementById('linkedin-quick-reply-buttons')) {
       return;
     }
@@ -289,29 +318,20 @@ function createLoadingIndicator(buttons, container) {
       return;
     }
 
-    // Create container for buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.id = 'linkedin-quick-reply-buttons';
-    buttonContainer.className = 'dynamic-comment-buttons';
+    const buttonContainer = createButtonContainer();
 
-    // Multiple possible locations to insert the buttons
     const insertionPoints = [
-      // Standard profile action area
       '.pv-top-card-v2-ctas__custom',
       '.YVhLlvSJKxRQbVgJhjXUSVtLCKzCemxlsHsfhw',
-      // Connection request profile action area
       '.pvs-profile-actions',
-      // Fallback to main profile section
       '.ph5.pb5',
       '.scaffold-layout__main'
     ];
 
-    // Try each insertion point until successful
     let inserted = false;
     for (const selector of insertionPoints) {
       const targetElement = document.querySelector(selector);
       if (targetElement) {
-        // Insert after the target element
         targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling);
         inserted = true;
         break;
@@ -324,15 +344,8 @@ function createLoadingIndicator(buttons, container) {
       return;
     }
 
-    // Create buttons from config
     buttonConfigs.forEach(config => {
-      const button = document.createElement('button');
-      button.className = 'comment-btn';
-      button.textContent = config.name || config.label || 'Template';
-      button.setAttribute('data-original-text', config.name);
-
-      // Add click handler
-      button.addEventListener('click', async () => {
+      const button = createButton(config, async () => {
         if (button.disabled) return;
         
         button.disabled = true;
@@ -342,7 +355,6 @@ function createLoadingIndicator(buttons, container) {
           const profileData = await getProfileDataWithCache();
           const aiSettings = await getAISettings();
           
-          // Show loading indicator
           const buttons = Array.from(buttonContainer.querySelectorAll('.comment-btn'));
           const { 
             loadingContainer, 
@@ -406,7 +418,6 @@ function createLoadingIndicator(buttons, container) {
               updateLiveLog(`Error: ${error.message}`, 0);
             }
           } finally {
-            // Remove loading container after delay
             setTimeout(() => {
               if (loadingContainer.parentNode) {
                 loadingContainer.style.display = 'none';
@@ -429,10 +440,8 @@ function createLoadingIndicator(buttons, container) {
       buttonContainer.appendChild(button);
     });
 
-    // Add AgentLink branding
     buttonContainer.appendChild(createAgentLinkBranding());
 
-    // Add mutation observer to handle dynamic page changes
     const observer = new MutationObserver((mutations) => {
       if (!document.getElementById('linkedin-quick-reply-buttons')) {
         initializeQuickReplyButton();
@@ -448,9 +457,7 @@ function createLoadingIndicator(buttons, container) {
     updateLiveLog('Quick reply buttons initialized', 0);
   }
 
-  // Enhanced SPA navigation detection
   function setupSPANavigationObserver() {
-    // Observer for DOM changes
     const domObserver = new MutationObserver(function() {
       if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
         lastUrl = window.location.href;
@@ -459,7 +466,6 @@ function createLoadingIndicator(buttons, container) {
       }
     });
 
-    // Observer for URL changes (for pushState/replaceState)
     const urlObserver = new MutationObserver(function() {
       if (window.location.href !== lastUrl && window.location.href.includes('linkedin.com/in/')) {
         lastUrl = window.location.href;
@@ -468,13 +474,11 @@ function createLoadingIndicator(buttons, container) {
       }
     });
 
-    // Observe body for DOM changes
     domObserver.observe(document.body, {
       childList: true,
       subtree: true
     });
 
-    // Observe title element for URL changes (LinkedIn updates this during navigation)
     const titleElement = document.querySelector('title');
     if (titleElement) {
       urlObserver.observe(titleElement, {
@@ -482,7 +486,6 @@ function createLoadingIndicator(buttons, container) {
       });
     }
 
-    // Listen for history changes
     const pushState = history.pushState;
     const replaceState = history.replaceState;
 
@@ -514,7 +517,6 @@ function createLoadingIndicator(buttons, container) {
   initializeQuickReplyButton();
   setupSPANavigationObserver();
 
-  // Fallback check after 3 seconds
   setTimeout(() => {
     if (!isInitialized) {
       updateLiveLog('Running fallback initialization', 0);
@@ -522,7 +524,6 @@ function createLoadingIndicator(buttons, container) {
     }
   }, 3000);
 
-  // Additional fallback - check every 2 seconds for SPA navigation
   setInterval(() => {
     if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
       updateLiveLog('Detected profile page change', 0);
@@ -533,7 +534,6 @@ function createLoadingIndicator(buttons, container) {
   }, 2000);
 })();
 
-// Generic function to fetch text content from a specified selector
 function fetchTextContent(selector, defaultValue = "Not found") {
   return document.querySelector(selector)?.innerText.trim() || defaultValue;
 }
@@ -569,8 +569,8 @@ function getFollowersData() {
 async function getMutualConnections() {
   const mutualElement = document.querySelector('.align-items-center.link-without-hover-visited');
   if (mutualElement && mutualElement.getAttribute('aria-hidden') !== 'true' &&
-    !mutualElement.classList.contains('visually-hidden') &&
-    !mutualElement.classList.contains('**web-inspector-hide-shortcut**')) {
+      !mutualElement.classList.contains('visually-hidden') &&
+      !mutualElement.classList.contains('**web-inspector-hide-shortcut**')) {
     return mutualElement.textContent.trim().split('mutual connection')[0] + ' mutual connection';
   }
   return 'No mutual connections found';
@@ -661,7 +661,7 @@ async function extractLinkedInExperience() {
   const showAllButtons = [
     document.querySelector('#navigation-index-see-all-positions-aggregated'),
     document.querySelector('#navigation-index-see-all-experiences')
-  ].filter(button => button !== null); // Remove null values
+  ].filter(button => button !== null);
 
   if (showAllButtons.length > 0) {
     for (let button of showAllButtons) {
@@ -700,7 +700,7 @@ async function extractLinkedInExperience() {
             console.error("Error:", error.message);
             resolve();
           });
-        }, 6000); // Fallback timeout of 6s
+        }, 6000);
       });
     }
   } else {
@@ -711,15 +711,13 @@ async function extractLinkedInExperience() {
 async function GetAbout() {
   let aboutSection = document.querySelector('#about');
   if (aboutSection) {
-    let section = aboutSection.closest('section'); // Get the parent section
-    let contentDiv = section.querySelector('div.display-flex.ph5.pv3'); // Find the content container
+    let section = aboutSection.closest('section');
+    let contentDiv = section.querySelector('div.display-flex.ph5.pv3');
 
     if (contentDiv) {
-      // Select all spans inside contentDiv, but exclude "visually-hidden" ones
       let aboutText = Array.from(contentDiv.querySelectorAll('span:not(.visually-hidden)'))
         .map(span => span.innerText.trim())
-        .join(' '); // Join text from multiple spans
-      
+        .join(' ');
       console.log(aboutText);
       return aboutText;
     } else {
@@ -733,7 +731,6 @@ async function GetAbout() {
 }
 
 async function extractBasicProfileInfo() {
-  // Selectors for scraping LinkedIn profile details
   const nameSelector = 'h1';
   const designationSelector = '.text-body-medium.break-words';
   const locationSelector = 'span.text-body-small.inline.t-black--light.break-words';
@@ -758,8 +755,6 @@ async function extractCurrentRole() {
 }
 
 async function gatherCompleteProfileData() {
-  updateStatusDetailed('🔍 Analyzing profile data...');
-
   try {
     const [basicInfo] = await Promise.all([
       extractBasicProfileInfo(),
@@ -769,228 +764,29 @@ async function gatherCompleteProfileData() {
       ...basicInfo
     };
 
-    // Log each key-value pair from profileData
     Object.entries(profileData).forEach(([key, value]) => {
-      updateStatusDetailed(`${key}: ${value}`);
+      console.log(`${key}: ${value}`);
     });
 
-    updateStatusDetailed('✅ Profile analysis complete!');
     return profileData;
   } catch (error) {
     console.error("Error extracting profile data:", error);
-    updateStatusDetailed('❌ Error analyzing profile: ' + error.message, 'error');
     throw error;
   }
 }
 
-let statusMessages = [];
-let isPopupVisible = false; // Changed to false to hide by default
-
-// Create enhanced status popup
-function createStatusPopup() {
-  const popup = document.createElement('div');
-  popup.id = 'ai-status-popup';
-  popup.style.cssText = `       
-    position: fixed;
-    top: 100px;
-    left: 100px;
-    color: #e0e0ff;
-    background: #1a1a2e;
-    padding: 0;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(110, 46, 220, 0.3);
-    z-index: 9999;
-    font-family: 'Segoe UI', Roboto, sans-serif;
-    width: 450px;
-    max-height: 600px;
-    display: none; // Changed to none to hide by default
-    flex-direction: column;
-    border: 1px solid #6e2edc;
-    overflow: hidden;
-    cursor: move;
-  `;
-
-  // Create header with controls
-  const header = document.createElement('div');
-  header.style.cssText = `
-    background: linear-gradient(90deg, #0033cc, #6e2edc);
-    color: white;
-    padding: 12px 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-weight: bold;
-    font-size: 16px;
-    user-select: none;
-    border-bottom: 1px solid #6e2edc;
-  `;
-  header.innerHTML = `
-    <span>AI MESSAGE GENERATOR</span>
-    <div>
-      <button id="clear-status" style="
-        background: white;
-        color: #0033cc;
-        border: none;
-        padding: 3px 8px;
-        margin-right: 8px;
-        border-radius: 4px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      ">CLEAR</button>
-      <button id="toggle-status" style="
-        background: white;
-        color: #0033cc;
-        border: none;
-        padding: 3px 8px;
-        border-radius: 4px;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.2s ease;
-      ">SHOW</button> <!-- Changed to SHOW since we're hiding by default -->
-    </div>
-  `;
-
-  // Create content area
-  const content = document.createElement('div');
-  content.id = 'status-messages';
-  content.style.cssText = `
-    padding: 15px;
-    overflow-y: auto;
-    flex-grow: 1;
-    background: #1a1a2e;
-    display: none; // Changed to none to hide by default
-  `;
-
-  popup.appendChild(header);
-  popup.appendChild(content);
-  document.body.appendChild(popup);
-
-  // Add hover effects to buttons
-  const buttons = header.querySelectorAll('button');
-  buttons.forEach(button => {
-    button.addEventListener('mouseover', () => {
-      button.style.background = '#e6e6ff';
-      button.style.transform = 'scale(1.05)';
-    });
-    button.addEventListener('mouseout', () => {
-      button.style.background = 'white';
-      button.style.transform = 'scale(1)';
-    });
-  });
-
-  // Add drag functionality
-  let isDragging = false;
-  let offsetX, offsetY;
-
-  header.addEventListener('mousedown', (e) => {
-    if (e.target.tagName === 'BUTTON') return;
-    
-    isDragging = true;
-    offsetX = e.clientX - popup.getBoundingClientRect().left;
-    offsetY = e.clientY - popup.getBoundingClientRect().top;
-    popup.style.cursor = 'grabbing';
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!isDragging) return;
-    
-    popup.style.left = (e.clientX - offsetX) + 'px';
-    popup.style.top = (e.clientY - offsetY) + 'px';
-  });
-
-  document.addEventListener('mouseup', () => {
-    isDragging = false;
-    popup.style.cursor = 'move';
-  });
-
-  // Add button functionality
-  document.getElementById('clear-status').addEventListener('click', () => {
-    statusMessages = [];
-    updateStatusDisplay();
-  });
-
-  document.getElementById('toggle-status').addEventListener('click', () => {
-    isPopupVisible = !isPopupVisible;
-    popup.style.display = isPopupVisible ? 'flex' : 'none';
-    content.style.display = isPopupVisible ? 'block' : 'none';
-    document.getElementById('toggle-status').textContent = isPopupVisible ? 'HIDE' : 'SHOW';
-  });
-
-  return popup;
-}
-
-// Update status display
-function updateStatusDisplay() {
-  const popup = document.getElementById('ai-status-popup') || createStatusPopup();
-  const content = document.getElementById('status-messages');
-
-  const messagesHtml = statusMessages.map(status => `
-    <div style="
-      margin-bottom: 15px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid #2a2a3a;
-      ${status.type === 'error' ? 'border-left: 3px solid #ff4d4d; padding-left: 10px;' : ''}
-      ${status.type === 'success' ? 'border-left: 3px solid #4dff4d; padding-left: 10px;' : ''}
-      ${status.type === 'info' ? 'border-left: 3px solid #4d4dff; padding-left: 10px;' : ''}
-      ${status.type === 'ai-message' ? 'border-left: 3px solid #6e2edc; padding-left: 10px;' : ''}
-    ">
-      <div style="
-        font-size: 12px;
-        color: ${status.type === 'error' ? '#ff8080' : 
-                status.type === 'success' ? '#80ff80' : 
-                status.type === 'ai-message' ? '#b388ff' : '#9e9eff'};
-        margin-bottom: 5px;
-        font-weight: bold;
-      ">${status.time} • ${status.type.toUpperCase()}</div>
-      <div style="
-        font-size: 14px;
-        line-height: 1.5;
-        color: ${status.type === 'error' ? '#ffb3b3' : '#e0e0ff'};
-        font-weight: ${status.type === 'error' ? 'bold' : 'normal'};
-        white-space: pre-wrap;
-      ">${status.message}</div>
-    </div>
-  `).join('');
-
-  content.innerHTML = messagesHtml;
-  content.scrollTop = content.scrollHeight;
-}
-
-// Update status message
-function updateStatusDetailed(message, type = 'info') {
-  console.log(`[${type}] ${message}`);
-
-  statusMessages.push({
-    message,
-    type,
-    time: new Date().toLocaleTimeString()
-  });
-
-  updateStatusDisplay();
-
-  // Don't automatically show popup for new messages
-  // Keep it hidden unless user chooses to show it
-}
-
 // Click Message Button
 async function clickMessageButton() {
-  updateStatusDetailed('🔍 Looking for message button...');
-
   const messageButton = document.querySelector('button[aria-label*="Message"]');
   if (!messageButton) {
-    updateStatusDetailed('❌ Message button not found!', 'error');
     throw new Error("Message button not found");
   }
 
   messageButton.click();
-  updateStatusDetailed('✅ Message dialog opened');
   return true;
 }
 
 async function insertMessage(message, profileData) {
-  updateStatusDetailed('⌨️ Inserting message...');
-
   return new Promise((resolve, reject) => {
     let chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
     if (chatWindows.length > 0) {
@@ -1015,7 +811,6 @@ async function insertMessage(message, profileData) {
 
     setTimeout(() => {
       observer.disconnect();
-      updateStatusDetailed('❌ Timeout reached. No chat window found!', 'error');
       reject(new Error('Chat window not found'));
     }, 5000);
 
@@ -1032,38 +827,29 @@ async function insertMessage(message, profileData) {
       console.log('Extracted Profile Name:', extractedProfileName);
       console.log('Chat Box Name:', chatBoxName);
       if (extractedProfileName && chatBoxName && extractedProfileName !== chatBoxName) {
-        console.error(`❌ Profile name (${extractedProfileName}) does not match chat box name (${chatBoxName})`);
-        updateStatusDetailed('❌ Profile name does not match chat box name!', 'error');
+        console.error(`Profile name (${extractedProfileName}) does not match chat box name (${chatBoxName})`);
         reject(new Error('Profile name mismatch'));
         return;
       }
-            const messageBox = lastChatWindow.querySelector('.msg-form__contenteditable');
-            if (messageBox) {
-                messageBox.focus();
-                messageBox.click();
-// Clear the chatbox content first
-                messageBox.innerHTML = '';
-                messageBox.dispatchEvent(new Event("input", { bubbles: true }));
 
+      const messageBox = lastChatWindow.querySelector('.msg-form__contenteditable');
+      if (messageBox) {
+        messageBox.focus();
+        messageBox.click();
 
-                // ✅ Preserve paragraph formatting
-                const paragraphs = message
-                    .split("\n")
-                    .map(para => para.trim())
-                    .filter(para => para.length > 0)
-                    .map(para => `<p>${para}</p>`)
-                    .join(""); 
+        // Clear the chatbox content first
+        messageBox.innerHTML = '';
+        messageBox.dispatchEvent(new Event("input", { bubbles: true }));
 
-                document.execCommand("insertText", false, message); // ✅ Simulate text input
-                messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+        document.execCommand("insertText", false, message);
+        messageBox.dispatchEvent(new Event("input", { bubbles: true }));
 
-                updateStatusDetailed('✅ Message inserted successfully!');
-                resolve(true);
-            } else {
-                console.log('❌ Message box not found.');
-                reject(new Error('Message box not found'));
-            }
-        }
-    });
-  }
+        resolve(true);
+      } else {
+        console.log('Message box not found.');
+        reject(new Error('Message box not found'));
+      }
+    }
+  });
+}
 })();
