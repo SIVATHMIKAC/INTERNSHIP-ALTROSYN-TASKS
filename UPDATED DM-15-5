@@ -263,6 +263,7 @@
   function createButtonContainer() {
     const container = document.createElement('div');
     container.className = 'dynamic-comment-buttons';
+    container.id = 'linkedin-quick-reply-buttons';
     return container;
   }
 
@@ -301,7 +302,7 @@
     if (connectButton) {
       return {
         connected: false,
-        message: "You need to connect with this person first before messaging"
+        message: "Send connection request to send a message"
       };
     }
     
@@ -311,6 +312,15 @@
       return {
         connected: false,
         message: "Your connection request is still pending"
+      };
+    }
+
+    // Check if there's a "Follow" button (means no connection exists)
+    const followButton = document.querySelector('button[aria-label*="Follow"]');
+    if (followButton) {
+      return {
+        connected: false,
+        message: "Send connection request to send a message"
       };
     }
 
@@ -337,6 +347,14 @@
 
     let isInitialized = false;
     let lastUrl = window.location.href;
+
+    // Remove existing button containers to prevent duplicates
+    function removeExistingButtonContainers() {
+      const existingContainers = document.querySelectorAll('#linkedin-quick-reply-buttons');
+      existingContainers.forEach(container => {
+        container.remove();
+      });
+    }
 
     async function getProfileDataWithCache() {
       updateLiveLog('Checking profile data cache', 0);
@@ -386,9 +404,8 @@
 
       await new Promise(resolve => setTimeout(resolve, 1500));
 
-      if (document.getElementById('linkedin-quick-reply-buttons')) {
-        return;
-      }
+      // Remove any existing button containers first
+      removeExistingButtonContainers();
 
       const { buttonConfigs = [] } = await chrome.storage.local.get(['buttonConfigs']);
       if (!buttonConfigs.length) {
@@ -536,17 +553,6 @@
       });
 
       buttonContainer.appendChild(createAgentLinkBranding());
-
-      const observer = new MutationObserver((mutations) => {
-        if (!document.getElementById('linkedin-quick-reply-buttons')) {
-          initializeQuickReplyButton();
-        }
-      });
-
-      observer.observe(document.body, {
-        childList: true,
-        subtree: true
-      });
 
       isInitialized = true;
       updateLiveLog('Quick reply buttons initialized', 0);
@@ -890,13 +896,19 @@
         // Check if the profile is not connected (shows "Connect" button)
         const connectButton = document.querySelector('button[aria-label*="Connect"]');
         if (connectButton) {
-          throw new Error("You need to connect with this person first before messaging");
+          throw new Error("Send connection request to send a message");
         }
         
         // Check if the profile is pending (shows "Pending" button)
         const pendingButton = document.querySelector('button[aria-label*="Pending"]');
         if (pendingButton) {
           throw new Error("Your connection request is still pending");
+        }
+        
+        // Check if there's a "Follow" button (means no connection exists)
+        const followButton = document.querySelector('button[aria-label*="Follow"]');
+        if (followButton) {
+          throw new Error("Send connection request to send a message");
         }
         
         throw new Error("Message button not found - you may not be connected");
