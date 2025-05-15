@@ -1,0 +1,979 @@
+(function() {
+  // First define the loadLiveLog function before using it
+  const loadLiveLog = () => {
+    return new Promise((resolve) => {
+      if (window.createLiveLog && window.updateLiveLog) {
+        resolve();
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('livelog.js');
+      script.onload = resolve;
+      (document.head || document.documentElement).appendChild(script);
+    });
+  };
+
+  // Add the new CSS styles
+  const addStyles = () => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .comment-btn {
+        position: relative;
+        overflow: hidden;
+        background: #ffffff;
+        color: rgb(0, 51, 204);
+        border: 1px solid rgb(0, 51, 204);
+        padding: 5px 10px;
+        border-radius: 50px;
+        font-size: 14px;
+        font-weight: normal;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: unset;
+        text-align: center;
+        transition: all 0.4s ease;
+        margin: 2px;
+        height: 32px;
+      }
+
+      .comment-btn:hover {
+        background: rgb(0, 51, 204);
+        color: #ffffff;
+      }
+
+      .comment-btn:active {
+        transform: scale(0.98);
+      }
+
+      .comment-btn::after {
+        content: '';
+        position: absolute;
+        top: var(--y);
+        left: var(--x);
+        width: 0;
+        height: 0;
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        transform: translate(-50%, -50%);
+        opacity: 0;
+      }
+
+      .comment-btn.active::after {
+        width: 200px;
+        height: 200px;
+        opacity: 1;
+        transition: width 0.5s ease-out, height 0.5s ease-out, opacity 1s ease;
+      }
+
+      .comment-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+        background: #24268d;
+        border: 1px solid #24268d;
+        color: #ffffff;
+      }
+
+      .dynamic-comment-buttons {
+        border: 1px solid #24268d;
+        border-radius: 12px;
+        padding: 10px;
+        margin: 16px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        box-shadow: 0 0 8px rgba(100, 149, 237, 0.2);
+        overflow-x: auto;
+        background: #ffffff;
+        justify-content: flex-start;
+        margin-bottom: 24px;
+      }
+
+      .dynamic-comment-buttons, .comment-btn {
+        box-sizing: border-box;
+      }
+
+      .ai-loading-message {
+        font-size: 14px;
+        margin: 10px 0;
+        color: #424242;
+      }
+
+      .ai-loading-container {
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: #f5f5f5;
+        margin-bottom: 10px;
+        padding: 10px;
+      }
+
+      .stop-button {
+        margin-left: 10px;
+        padding: 3px 8px;
+        font-size: 12px;
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+
+      .stop-button:hover {
+        background: #ffcdd2 !important;
+      }
+
+      .connection-status-warning {
+        background-color: #fff8e1;
+        border-left: 4px solid #ffc107;
+        padding: 12px;
+        margin: 10px 0;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #5d4037;
+      }
+    `;
+    document.head.appendChild(style);
+  };
+
+  // Create AgentLink Branding Footer
+  function createAgentLinkBranding() {
+    const powered = document.createElement('div');
+    powered.style.width = '100%';
+    powered.style.borderTop = '1px solid rgb(229, 231, 235)';
+    powered.style.paddingTop = '10px';
+    powered.style.display = 'flex';
+    powered.style.alignItems = 'center';
+    powered.style.justifyContent = 'center';
+    powered.style.gap = '6px';
+    powered.style.fontSize = '14px';
+    powered.style.color = 'rgb(36, 38, 141)';
+    powered.style.marginTop = '16px';
+    powered.innerHTML = `
+      <span style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border-radius:5px;">
+        <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'>
+          <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <rect width='16' height='12' x='4' y='8' rx='2' stroke='white' stroke-width='2'/>
+          <path d='M2 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M20 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M15 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M9 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        </svg>
+      </span>
+      <span style="font-weight:500;">Powered by AgentLink</span>
+    `;
+    return powered;
+  }
+
+  // Loading Indicator
+  function createLoadingIndicator(buttons, container) {
+    const abortController = new AbortController();
+    let isCancelled = false;
+
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'ai-loading-container';
+    loadingContainer.style.display = 'flex';
+    loadingContainer.style.alignItems = 'center';
+    loadingContainer.style.justifyContent = 'space-between';
+    loadingContainer.style.width = '100%';
+    loadingContainer.style.padding = '10px';
+
+    const loadingMessage = document.createElement('div');
+    loadingMessage.className = 'ai-loading-message';
+    loadingMessage.textContent = '🤖 AgentLink is generating your Message...';
+
+    const stopButton = document.createElement('button');
+    stopButton.className = 'stop-button';
+    stopButton.innerHTML = '✕ Stop';
+    
+    stopButton.onmouseover = () => {
+      stopButton.style.background = '#ffcdd2';
+    };
+    
+    stopButton.onmouseout = () => {
+      stopButton.style.background = '#ffebee';
+    };
+
+    stopButton.onclick = () => {
+      isCancelled = true;
+      abortController.abort('User requested cancellation');
+      loadingMessage.textContent = '⏹️ Stopping generation...';
+      stopButton.disabled = true;
+      stopButton.style.cursor = 'not-allowed';
+      stopButton.style.opacity = '0.7';
+
+      setTimeout(() => {
+        if (loadingContainer.parentNode) {
+          loadingContainer.style.display = 'none';
+        }
+        buttons.forEach(btn => {
+          btn.style.display = '';
+        });
+      }, 1000);
+    };
+
+    loadingContainer.appendChild(loadingMessage);
+    loadingContainer.appendChild(stopButton);
+
+    buttons.forEach(btn => {
+      btn.style.display = 'none';
+    });
+
+    container.insertBefore(loadingContainer, container.firstChild);
+
+    return {
+      loadingContainer,
+      loadingMessage,
+      stopButton,
+      abortController,
+      isCancelled: () => isCancelled
+    };
+  }
+
+  // Button Creation with Ripple Effect
+  function createButton(config, onClick) {
+    const button = document.createElement('button');
+    button.className = 'comment-btn';
+    button.textContent = config.name || config.label || 'Template';
+    button.setAttribute('data-original-text', config.name);
+    
+    button.addEventListener('click', function(e) {
+      const rect = this.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      this.style.setProperty('--x', x + 'px');
+      this.style.setProperty('--y', y + 'px');
+      
+      this.classList.add('active');
+      
+      setTimeout(() => {
+        this.classList.remove('active');
+      }, 1000);
+      
+      onClick();
+    });
+    
+    return button;
+  }
+
+  // Container Creation
+  function createButtonContainer() {
+    const container = document.createElement('div');
+    container.className = 'dynamic-comment-buttons';
+    return container;
+  }
+
+  // Show connection status warning
+  function showConnectionWarning(message) {
+    const warning = document.createElement('div');
+    warning.className = 'connection-status-warning';
+    warning.innerHTML = `
+      <strong>⚠️ Connection Required:</strong> ${message}
+    `;
+    return warning;
+  }
+
+  // Check connection status
+  function checkConnectionStatus() {
+    // Check if we need to accept the connection
+    const acceptButton = document.querySelector('button[aria-label*="Accept"]');
+    if (acceptButton) {
+      return {
+        connected: false,
+        message: "You need to accept this connection first before messaging"
+      };
+    }
+
+    // Check for the message button (means already connected)
+    const messageButton = document.querySelector('button[aria-label*="Message"]');
+    if (messageButton) {
+      return {
+        connected: true,
+        message: "You are connected with this person"
+      };
+    }
+
+    // Check if the profile is not connected (shows "Connect" button)
+    const connectButton = document.querySelector('button[aria-label*="Connect"]');
+    if (connectButton) {
+      return {
+        connected: false,
+        message: "You need to connect with this person first before messaging"
+      };
+    }
+    
+    // Check if the profile is pending (shows "Pending" button)
+    const pendingButton = document.querySelector('button[aria-label*="Pending"]');
+    if (pendingButton) {
+      return {
+        connected: false,
+        message: "Your connection request is still pending"
+      };
+    }
+
+    // Default case (shouldn't normally happen)
+    return {
+      connected: false,
+      message: "You are not connected with this person"
+    };
+  }
+
+  (async function() {
+    // Only run on LinkedIn profile pages
+    if (!window.location.href.includes('linkedin.com/in/')) {
+      return;
+    }
+
+    // Load live log first
+    await loadLiveLog();
+    createLiveLog();
+    updateLiveLog('Ready to message profiles', 0);
+
+    // Add the new styles
+    addStyles();
+
+    let isInitialized = false;
+    let lastUrl = window.location.href;
+
+    async function getProfileDataWithCache() {
+      updateLiveLog('Checking profile data cache', 0);
+      const currentUrl = window.location.href.split('?')[0];
+      const cacheKey = `profileData_${currentUrl}`;
+
+      try {
+        const { [cacheKey]: cachedData } = await chrome.storage.local.get(cacheKey);
+
+        if (cachedData) {
+          updateLiveLog("Using cached profile data", 0);
+          return cachedData;
+        }
+
+        updateLiveLog("Gathering fresh profile data", 2);
+        const profileData = await gatherCompleteProfileData();
+
+        const dataToCache = {
+          ...profileData,
+          _cachedAt: Date.now()
+        };
+
+        await chrome.storage.local.set({ [cacheKey]: dataToCache });
+
+        setTimeout(async () => {
+          try {
+            await chrome.storage.local.remove(cacheKey);
+          } catch (error) {
+            console.error('Error removing cache:', error);
+          }
+        }, 24 * 60 * 60 * 1000);
+
+        return profileData;
+      } catch (error) {
+        console.error('Error in getProfileDataWithCache:', error);
+        if (error.message.includes('Extension context invalidated')) {
+          // Handle extension context invalidation
+          window.location.reload();
+        }
+        throw error;
+      }
+    }
+
+    async function initializeQuickReplyButton() {
+      if (isInitialized) return;
+      updateLiveLog('Initializing quick reply buttons', 1);
+
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      if (document.getElementById('linkedin-quick-reply-buttons')) {
+        return;
+      }
+
+      const { buttonConfigs = [] } = await chrome.storage.local.get(['buttonConfigs']);
+      if (!buttonConfigs.length) {
+        updateLiveLog('No button configs found', 0);
+        return;
+      }
+
+      const buttonContainer = createButtonContainer();
+
+      const insertionPoints = [
+        '.pv-top-card-v2-ctas__custom',
+        '.YVhLlvSJKxRQbVgJhjXUSVtLCKzCemxlsHsfhw',
+        '.pvs-profile-actions',
+        '.ph5.pb5',
+        '.scaffold-layout__main'
+      ];
+
+      let inserted = false;
+      for (const selector of insertionPoints) {
+        const targetElement = document.querySelector(selector);
+        if (targetElement) {
+          targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling);
+          inserted = true;
+          break;
+        }
+      }
+
+      if (!inserted) {
+        updateLiveLog('Could not find insertion point', 0);
+        console.warn('Could not find suitable insertion point for quick reply buttons');
+        return;
+      }
+
+      buttonConfigs.forEach(config => {
+        const button = createButton(config, async () => {
+          if (button.disabled) return;
+          
+          button.disabled = true;
+          
+          try {
+            // First check connection status
+            const connectionStatus = checkConnectionStatus();
+            if (!connectionStatus.connected) {
+              const warning = showConnectionWarning(connectionStatus.message);
+              buttonContainer.insertBefore(warning, buttonContainer.firstChild);
+              
+              // Remove the warning after 5 seconds
+              setTimeout(() => {
+                if (warning.parentNode) {
+                  warning.remove();
+                }
+              }, 5000);
+              
+              button.disabled = false;
+              return;
+            }
+
+            updateLiveLog(`Starting ${config.name} message`, 0);
+            const profileData = await getProfileDataWithCache();
+            const aiSettings = await getAISettings();
+            
+            const buttons = Array.from(buttonContainer.querySelectorAll('.comment-btn'));
+            const { 
+              loadingContainer, 
+              loadingMessage, 
+              stopButton, 
+              abortController, 
+              isCancelled 
+            } = createLoadingIndicator(buttons, buttonContainer);
+            
+            try {
+              updateLiveLog('Generating AI message', 2);
+              const response = await chrome.runtime.sendMessage({
+                action: "generateMessage",
+                profileData,
+                config,
+                aiSettings,
+                signal: abortController.signal
+              }).catch(err => {
+                if (err.message.includes('aborted') || err.message.includes('cancelled')) {
+                  throw new Error('Generation cancelled by user');
+                }
+                throw err;
+              });
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+              
+              updateLiveLog('Opening message window', 1);
+              const messageWindowOpened = await clickMessageButton();
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+
+              if (!messageWindowOpened) {
+                throw new Error('Failed to open message window');
+              }
+
+              await new Promise(resolve => setTimeout(resolve, 3000));
+
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+
+              updateLiveLog('Inserting message', 2);
+              await insertMessage(response.message, profileData);
+
+              loadingMessage.textContent = '✅ Message ready to send!';
+              stopButton.style.display = 'none';
+            } catch (error) {
+              if (error.message.includes('cancelled') || error.message.includes('aborted')) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                updateLiveLog('Message generation cancelled', 0);
+              } else {
+                console.error(error);
+                loadingMessage.textContent = `❌ Error: ${error.message}`;
+                updateLiveLog(`Error: ${error.message}`, 0);
+              }
+            } finally {
+              setTimeout(() => {
+                if (loadingContainer.parentNode) {
+                  loadingContainer.style.display = 'none';
+                }
+                buttons.forEach(btn => {
+                  btn.style.display = '';
+                });
+              }, 2000);
+            }
+            
+            updateLiveLog('Message ready to send!', 1);
+          } catch (error) {
+            console.error(error);
+            updateLiveLog(`Error: ${error.message}`, 0);
+          } finally {
+            button.disabled = false;
+          }
+        });
+
+        buttonContainer.appendChild(button);
+      });
+
+      buttonContainer.appendChild(createAgentLinkBranding());
+
+      const observer = new MutationObserver((mutations) => {
+        if (!document.getElementById('linkedin-quick-reply-buttons')) {
+          initializeQuickReplyButton();
+        }
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      isInitialized = true;
+      updateLiveLog('Quick reply buttons initialized', 0);
+    }
+
+    function setupSPANavigationObserver() {
+      const domObserver = new MutationObserver(function() {
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      });
+
+      const urlObserver = new MutationObserver(function() {
+        if (window.location.href !== lastUrl && window.location.href.includes('linkedin.com/in/')) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      });
+
+      domObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+
+      const titleElement = document.querySelector('title');
+      if (titleElement) {
+        urlObserver.observe(titleElement, {
+          childList: true
+        });
+      }
+
+      const pushState = history.pushState;
+      const replaceState = history.replaceState;
+
+      history.pushState = function() {
+        pushState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      };
+
+      history.replaceState = function() {
+        replaceState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      };
+
+      window.addEventListener('beforeunload', () => {
+        domObserver.disconnect();
+        urlObserver.disconnect();
+      });
+    }
+
+    // Initial setup
+    initializeQuickReplyButton();
+    setupSPANavigationObserver();
+
+    setTimeout(() => {
+      if (!isInitialized) {
+        updateLiveLog('Running fallback initialization', 0);
+        initializeQuickReplyButton();
+      }
+    }, 3000);
+
+    setInterval(() => {
+      if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+        updateLiveLog('Detected profile page change', 0);
+        lastUrl = window.location.href;
+        isInitialized = false;
+        initializeQuickReplyButton();
+      }
+    }, 2000);
+  })();
+
+  function fetchTextContent(selector, defaultValue = "Not found") {
+    return document.querySelector(selector)?.innerText.trim() || defaultValue;
+  }
+
+  // Function to fetch the name from the first <h1> tag
+  function fetchName() {
+    return { name: fetchTextContent('h1', "Name not found") };
+  }
+
+  // Function to fetch the designation from the specified <div> element
+  function fetchDesignation() {
+    return { designation: fetchTextContent('div.text-body-medium', "Designation not found") };
+  }
+
+  // Function to fetch the profile location from the specified <span> element
+  function fetchLocation() {
+    return { profileLocation: fetchTextContent('span.text-body-small.inline', "Location not found") };
+  }
+
+  // Function to fetch connection details
+  function fetchConnections() {
+    const smallConnections = fetchTextContent('li.text-body-small a span.t-bold', null);
+    const largeConnections = fetchTextContent('span.t-black--light span.t-bold', null);
+    return { connections: smallConnections || largeConnections || "Connections not found" };
+  }
+
+  // Function to get followers data as an object
+  function getFollowersData() {
+    return { followers: fetchTextContent('li.text-body-small.t-black--light span.t-bold', "Followers not found") };
+  }
+
+  // Async function to fetch mutual connections
+  async function getMutualConnections() {
+    const mutualElement = document.querySelector('.align-items-center.link-without-hover-visited');
+    if (mutualElement && mutualElement.getAttribute('aria-hidden') !== 'true' &&
+        !mutualElement.classList.contains('visually-hidden') &&
+        !mutualElement.classList.contains('**web-inspector-hide-shortcut**')) {
+      return mutualElement.textContent.trim().split('mutual connection')[0] + ' mutual connection';
+    }
+    return 'No mutual connections found';
+  }
+
+  // Function to recursively gather text content from an element
+  function getTextContent(element) {
+    let text = '';
+
+    element.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent.trim() + ' ';
+      } else if (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('visually-hidden')) {
+        text += getTextContent(node);
+      }
+    });
+
+    return text;
+  }
+
+  // Promise-based function to scrape all visible text content from a specified section
+  function scrapeAllTextContent(sectionSelector) {
+    return new Promise((resolve, reject) => {
+      const section = document.querySelector(sectionSelector);
+      if (!section) {
+        reject(new Error("Section not found: " + sectionSelector));
+        return;
+      }
+
+      let textContent = getTextContent(section);
+      textContent = textContent.replace(/\s+/g, ' ').trim();
+      textContent = textContent.replace(/([.?!])\s*(?=[A-Z])/g, '$1\n\n');
+
+      resolve(textContent);
+    });
+  }
+
+  // --- AI settings retrieval ---
+  async function getAISettings() {
+    try {
+      const { aiSettings = {} } = await chrome.storage.local.get(['aiSettings']);
+      return aiSettings;
+    } catch (error) {
+      console.error('Error getting AI settings:', error);
+      return {};
+    }
+  }
+
+  // Function to extract experience data
+  function extractExperienceData() {
+    const experienceData = { experience: [] };
+    const experienceHeading = [...document.querySelectorAll('h2')].find(h =>
+      h.textContent.trim().includes('Experience')
+    );
+
+    if (experienceHeading) {
+      const experienceSection = experienceHeading.closest('section');
+      if (experienceSection) {
+        const experienceItems = experienceSection.querySelectorAll('li.artdeco-list__item');
+
+        experienceItems.forEach(item => {
+          let texts = [];
+          const allTextElements = item.querySelectorAll('.t-bold, .t-14.t-normal, .t-black--light, strong');
+
+          allTextElements.forEach(element => {
+            let text = element.textContent
+              .replace(/<!---->/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+
+            if (text.length > 1) {
+              const halfLength = Math.floor(text.length / 2);
+              if (text.substring(0, halfLength) === text.substring(halfLength)) {
+                text = text.substring(0, halfLength);
+              }
+            }
+
+            if (text && !texts.includes(text)) {
+              texts.push(text);
+            }
+          });
+
+          texts = [...new Set(texts)].filter(text => text && text !== 'Experience');
+          if (texts.length > 0) experienceData.experience.push({ texts });
+        });
+      }
+    }
+
+    return experienceData;
+  }
+
+  async function extractLinkedInExperience() {
+    const showAllButtons = [
+      document.querySelector('#navigation-index-see-all-positions-aggregated'),
+      document.querySelector('#navigation-index-see-all-experiences')
+    ].filter(button => button !== null);
+
+    if (showAllButtons.length > 0) {
+      for (let button of showAllButtons) {
+        button.click();
+        console.log("Clicked 'Show all experiences' button.");
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 4000));
+
+      const sectionSelector = 'section.artdeco-card.pb3';
+      const experienceSection = document.querySelector(sectionSelector);
+
+      if (experienceSection) {
+        return new Promise(resolve => {
+          const observer = new MutationObserver((mutations, obs) => {
+            if (experienceSection.innerText.trim().length > 100) {
+              obs.disconnect();
+              scrapeAllTextContent(sectionSelector).then(scrapedText => {
+                console.log("Scraped Text Content:\n", scrapedText);
+                resolve(scrapedText);
+              }).catch(error => {
+                console.error("Error:", error.message);
+                resolve();
+              });
+            }
+          });
+
+          observer.observe(experienceSection, { childList: true, subtree: true });
+
+          setTimeout(() => {
+            observer.disconnect();
+            scrapeAllTextContent(sectionSelector).then(scrapedText => {
+              console.log("Scraped Text Content:\n", scrapedText);
+              resolve(scrapedText);
+            }).catch(error => {
+              console.error("Error:", error.message);
+              resolve();
+            });
+          }, 6000);
+        });
+      }
+    } else {
+      return extractExperienceData();
+    }
+  }
+
+  async function GetAbout() {
+    let aboutSection = document.querySelector('#about');
+    if (aboutSection) {
+      let section = aboutSection.closest('section');
+      let contentDiv = section.querySelector('div.display-flex.ph5.pv3');
+
+      if (contentDiv) {
+        let aboutText = Array.from(contentDiv.querySelectorAll('span:not(.visually-hidden)'))
+          .map(span => span.innerText.trim())
+          .join(' ');
+        console.log(aboutText);
+        return aboutText;
+      } else {
+        console.log("About content not found.");
+        return "";
+      }
+    } else {
+      console.log("About section anchor not found.");
+      return "";
+    }
+  }
+
+  async function extractBasicProfileInfo() {
+    const nameSelector = 'h1';
+    const designationSelector = '.text-body-medium.break-words';
+    const locationSelector = 'span.text-body-small.inline.t-black--light.break-words';
+    const connectionsSelector = 'li.text-body-small:last-child .t-bold';
+    const followersSelector = 'ul li.text-body-small .t-bold';
+
+    let obj = {
+      name: document.querySelector(nameSelector)?.innerText.trim() || 'Name not found',
+      designation: document.querySelector(designationSelector)?.innerText.trim() || 'Designation not found',
+      location: document.querySelector(locationSelector)?.innerText.trim() || 'Location not found',
+      connections: document.querySelector(connectionsSelector)?.innerText.trim() || 'Connections not found',
+      followers: document.querySelector(followersSelector)?.textContent.trim() || 'followers not found',
+      about: await GetAbout()
+    };
+    console.log(obj)
+    return obj;
+  }
+
+  async function extractCurrentRole() {
+    const currentPosition = document.querySelector('.pv-text-details__right-panel .pv-text-details__right-panel-item');
+    return currentPosition?.innerText?.trim() || '';
+  }
+
+  async function gatherCompleteProfileData() {
+    try {
+      const [basicInfo] = await Promise.all([
+        extractBasicProfileInfo(),
+      ]);
+
+      const profileData = {
+        ...basicInfo
+      };
+
+      Object.entries(profileData).forEach(([key, value]) => {
+        console.log(`${key}: ${value}`);
+      });
+
+      return profileData;
+    } catch (error) {
+      console.error("Error extracting profile data:", error);
+      throw error;
+    }
+  }
+
+  // Click Message Button
+  async function clickMessageButton() {
+    try {
+      // First check if we need to accept the connection
+      const acceptButton = document.querySelector('button[aria-label*="Accept"]');
+      if (acceptButton) {
+        throw new Error("You need to accept this connection first before messaging");
+      }
+
+      // Then check for the message button
+      const messageButton = document.querySelector('button[aria-label*="Message"]');
+      if (!messageButton) {
+        // Check if the profile is not connected (shows "Connect" button)
+        const connectButton = document.querySelector('button[aria-label*="Connect"]');
+        if (connectButton) {
+          throw new Error("You need to connect with this person first before messaging");
+        }
+        
+        // Check if the profile is pending (shows "Pending" button)
+        const pendingButton = document.querySelector('button[aria-label*="Pending"]');
+        if (pendingButton) {
+          throw new Error("Your connection request is still pending");
+        }
+        
+        throw new Error("Message button not found - you may not be connected");
+      }
+
+      messageButton.click();
+      return true;
+    } catch (error) {
+      console.error('Error in clickMessageButton:', error);
+      throw error;
+    }
+  }
+
+  async function insertMessage(message, profileData) {
+    return new Promise((resolve, reject) => {
+      let chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+      if (chatWindows.length > 0) {
+        processChatWindow(chatWindows[chatWindows.length - 1]);
+        return;
+      }
+
+      const observer = new MutationObserver(() => {
+        chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+        if (chatWindows.length === 0) return;
+
+        observer.disconnect();
+        processChatWindow(chatWindows[chatWindows.length - 1]);
+      });
+
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+
+      setTimeout(() => {
+        observer.disconnect();
+        reject(new Error('Chat window not found'));
+      }, 5000);
+
+      async function processChatWindow(lastChatWindow) {
+        console.log('Target chat window:', lastChatWindow);
+
+        const chatBoxNameElement = lastChatWindow.querySelector('a.profile-card-one-to-one__profile-link .truncate');
+        const chatBoxName = chatBoxNameElement ? chatBoxNameElement.innerText.trim() : '';
+
+        const extractedProfileName = typeof profileData.name === 'object'
+          ? JSON.stringify(profileData.name)
+          : String(profileData.name).trim();
+
+        console.log('Extracted Profile Name:', extractedProfileName);
+        console.log('Chat Box Name:', chatBoxName);
+        if (extractedProfileName && chatBoxName && extractedProfileName !== chatBoxName) {
+          console.error(`Profile name (${extractedProfileName}) does not match chat box name (${chatBoxName})`);
+          reject(new Error('Profile name mismatch'));
+          return;
+        }
+
+        const messageBox = lastChatWindow.querySelector('.msg-form__contenteditable');
+        if (messageBox) {
+          messageBox.focus();
+          messageBox.click();
+
+          // Clear the chatbox content first
+          messageBox.innerHTML = '';
+          messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+
+          document.execCommand("insertText", false, message);
+          messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+
+          resolve(true);
+        } else {
+          console.log('Message box not found.');
+          reject(new Error('Message box not found'));
+        }
+      }
+    });
+  }
+})();
