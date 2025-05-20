@@ -1,0 +1,1280 @@
+(function() {
+  // First define the loadLiveLog function before using it
+  const loadLiveLog = () => {
+    return new Promise((resolve) => {
+      if (window.createLiveLog && window.updateLiveLog) {
+        resolve();
+        return;
+      }
+  
+      const script = document.createElement('script');
+      script.src = chrome.runtime.getURL('livelog.js');
+      script.onload = resolve;
+      (document.head || document.documentElement).appendChild(script);
+    });
+  };
+
+  // Scroller class implementation
+  class Scroller {
+    constructor() {
+      this.initStyles();
+    }
+
+    initStyles() {
+      const style = document.createElement('style');
+      style.textContent = `
+        .dm-buttons-scrollable {
+          display: flex;
+          flex-wrap: nowrap;
+          gap: 10px;
+          overflow-x: auto;
+          scroll-behavior: smooth;
+          width: 100%;
+          margin: 0;
+          padding: 0 4px 4px 4px;
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+
+        .dm-buttons-scrollable::-webkit-scrollbar {
+          display: none;
+        }
+
+        .scroll-arrow {
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 30px;
+          height: 30px;
+          background: white;
+          border: 1px solid #e0e0e0;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          z-index: 2;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+          transition: all 0.2s;
+          opacity: 1;
+          visibility: visible;
+          transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+
+        .scroll-arrow.hidden {
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+        }
+
+        .scroll-arrow:hover {
+          background: #f0f0f0;
+        }
+
+        .scroll-arrow.left {
+          left: 5px;
+        }
+
+        .scroll-arrow.right {
+          right: 5px;
+        }
+
+        .scroll-arrow svg {
+          width: 16px;
+          height: 16px;
+          fill: #24268d;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
+    createScrollableContainer(buttons) {
+      const container = document.createElement('div');
+      container.className = 'dm-buttons-scrollable';
+
+      // Create scroll arrows
+      const leftArrow = document.createElement('button');
+      leftArrow.className = 'scroll-arrow left hidden';
+      leftArrow.innerHTML = `<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>`;
+      leftArrow.addEventListener('click', (e) => {
+        e.preventDefault();
+        container.scrollBy({ left: -200, behavior: 'smooth' });
+      });
+
+      const rightArrow = document.createElement('button');
+      rightArrow.className = 'scroll-arrow right';
+      rightArrow.innerHTML = `<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>`;
+      rightArrow.addEventListener('click', (e) => {
+        e.preventDefault();
+        container.scrollBy({ left: 200, behavior: 'smooth' });
+      });
+
+      // Add buttons to container
+      buttons.forEach(button => {
+        container.appendChild(button);
+      });
+
+      // Add scroll event listener
+      container.addEventListener('scroll', () => {
+        this.updateArrowVisibility(container, leftArrow, rightArrow);
+      });
+
+      // Initial arrow visibility check
+      setTimeout(() => {
+        this.updateArrowVisibility(container, leftArrow, rightArrow);
+      }, 100);
+
+      return {
+        container,
+        leftArrow,
+        rightArrow
+      };
+    }
+
+    updateArrowVisibility(scrollableContainer, leftArrow, rightArrow) {
+      const scrollLeft = scrollableContainer.scrollLeft;
+      const scrollWidth = scrollableContainer.scrollWidth;
+      const clientWidth = scrollableContainer.clientWidth;
+
+      if (scrollLeft <= 10) {
+        leftArrow.classList.add('hidden');
+      } else {
+        leftArrow.classList.remove('hidden');
+      }
+
+      if (scrollLeft >= scrollWidth - clientWidth - 10) {
+        rightArrow.classList.add('hidden');
+      } else {
+        rightArrow.classList.remove('hidden');
+      }
+    }
+  }
+
+  // Add the new CSS styles
+  const addStyles = () => {
+    const style = document.createElement('style');
+    style.textContent = `
+      .comment-btn {
+        position: relative;
+        overflow: hidden;
+        background: #ffffff;
+        color: rgb(0, 51, 204);
+        border: 1px solid rgb(0, 51, 204);
+        padding: 5px 10px;
+        border-radius: 50px;
+        font-size: 14px;
+        font-weight: normal;
+        cursor: pointer;
+        white-space: nowrap;
+        flex-shrink: 0;
+        min-width: unset;
+        text-align: center;
+        transition: all 0.4s ease;
+      }
+      #profile-sticky-header-toggle{
+        padding-top:1px;
+      }
+      .comment-btn:hover {
+        background: rgb(0, 51, 204);
+        color: #ffffff;
+      }
+
+      .comment-btn:active {
+        transform: scale(0.98);
+      }
+
+      .comment-btn::after {
+        display: none; /* Removed the ripple circle effect */
+      }
+
+      .comment-btn.active::after {
+        display: none; /* Removed the ripple circle effect */
+      }
+
+      .comment-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none !important;
+        background: #24268d;
+        border: 1px solid #24268d;
+        color: #ffffff;
+      }
+
+      .dynamic-comment-buttons {
+        border: 1px solid #24268d;
+        border-radius: 12px;
+        padding: 10px;
+        margin: 16px;
+        box-shadow: 0 0 8px rgba(100, 149, 237, 0.2);
+        background: #ffffff;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .dynamic-comment-buttons-inner {
+        position: relative;
+        width: 100%;
+      }
+
+      .dynamic-comment-buttons, .comment-btn {
+        box-sizing: border-box;
+      }
+
+      .ai-loading-message {
+        animation: pulse 1.5s infinite;
+        font-size: 14px;
+        margin: 10px 0;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
+      }
+
+      .ai-loading-container {
+        animation: fadeIn 0.3s ease-out;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+        background: #f5f5f5;
+        margin-bottom: 10px;
+      }
+      .ai-loading-message {
+        font-size: 14px;
+        color: #424242;
+      }
+      .stop-button:hover {
+        background: #ffcdd2 !important;
+      }
+
+      /* Hide the status popup by default */
+      #ai-status-popup {
+        display: none !important;
+      }
+    `;
+    document.head.appendChild(style);
+  };
+  
+  // Create AgentLink Branding Footer
+  function createAgentLinkBranding() {
+    const powered = document.createElement('div');
+    powered.style.width = '100%';
+    powered.style.borderTop = '1px solid #e5e7eb';
+    powered.style.paddingTop = '8px';
+    powered.style.display = 'flex';
+    powered.style.alignItems = 'center';
+    powered.style.justifyContent = 'center';
+    powered.style.gap = '6px';
+    powered.style.fontSize = '14px';
+    powered.style.color = '#24268d';
+    powered.innerHTML = `       
+      <span style="display:flex;align-items:center;justify-content:center;width:20px;height:20px;background:linear-gradient(to right,#4d7cfe,#9f7aea);border-radius:5px;">
+        <svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none'>
+          <path d='M12 8V4H8' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <rect width='16' height='12' x='4' y='8' rx='2' stroke='white' stroke-width='2'/>
+          <path d='M2 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M20 14h2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M15 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+          <path d='M9 13v2' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+        </svg>
+      </span>
+      <span style="font-weight:500;">Powered by AgentLink</span>
+    `;
+    return powered;
+  }
+  
+  // Loading Indicator
+  function createLoadingIndicator(buttons, container) {
+    // Create abort controller for cancellation
+    const abortController = new AbortController();
+    let isCancelled = false;
+  
+    // Hide all buttons and show loading message with stop button
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'ai-loading-container';
+    loadingContainer.style.display = 'flex';
+    loadingContainer.style.alignItems = 'center';
+    loadingContainer.style.justifyContent = 'space-between';
+    loadingContainer.style.width = '100%';
+    loadingContainer.style.padding = '10px';
+  
+    const loadingMessage = document.createElement('div');
+    loadingMessage.className = 'ai-loading-message';
+    loadingMessage.innerHTML = `
+    <span style="display:inline-flex;align-items:center;">
+      <svg width="20" height="20" viewBox="0 0 50 50" style="margin-right:8px;">
+        <circle cx="25" cy="25" r="20" fill="none" stroke="#7f00ff" stroke-width="5" stroke-linecap="round" stroke-dasharray="31.4 31.4" transform="rotate(-90 25 25)">
+          <animateTransform attributeName="transform" type="rotate" from="0 25 25" to="360 25 25" dur="1s" repeatCount="indefinite"/>
+        </circle>
+      </svg>
+      AgentLink is generating your message...
+    </span>
+  `;       
+    const stopButton = document.createElement('button');
+    stopButton.className = 'stop-button';
+    stopButton.innerHTML = '✕ Stop';
+    stopButton.style.marginLeft = '10px';
+    stopButton.style.padding = '3px 8px';
+    stopButton.style.fontSize = '12px';
+    stopButton.style.background = '#ffebee';
+    stopButton.style.color = '#c62828';
+    stopButton.style.border = '1px solid #ef9a9a';
+    stopButton.style.borderRadius = '4px';
+    stopButton.style.cursor = 'pointer';
+    stopButton.style.transition = 'all 0.2s';
+  
+    stopButton.onmouseover = () => {
+      stopButton.style.background = '#ffcdd2';
+    };
+    stopButton.onmouseout = () => {
+      stopButton.style.background = '#ffebee';
+    };
+  
+    stopButton.onclick = () => {
+      isCancelled = true;
+      abortController.abort('User requested cancellation');
+      loadingMessage.textContent = '⏹️ Stopping generation...';
+      stopButton.disabled = true;
+      stopButton.style.cursor = 'not-allowed';
+      stopButton.style.opacity = '0.7';
+      
+      // Hide loading container after 1 second
+      setTimeout(() => {
+        if (loadingContainer.parentNode) {
+          loadingContainer.style.display = 'none';
+        }
+        buttons.forEach(btn => {
+          btn.style.display = '';
+        });
+      }, 1000);
+    };
+  
+    loadingContainer.appendChild(loadingMessage);
+    loadingContainer.appendChild(stopButton);
+  
+    // Hide all buttons
+    buttons.forEach(btn => {
+      btn.style.display = 'none';
+    });
+  
+    // Insert loading container
+    container.insertBefore(loadingContainer, container.firstChild);
+    
+    return { 
+      loadingContainer, 
+      loadingMessage, 
+      stopButton, 
+      abortController, 
+      isCancelled: () => isCancelled 
+    };
+  }
+  
+  // Check if user is connected or has pending connection
+  function checkConnectionStatus() {
+    // Check if already connected
+    const connectedButton = document.querySelector('button[aria-label*="Message"]');
+    if (connectedButton) return 'connected';
+    
+    // Check if there's a pending connection request
+    const acceptButton = document.querySelector('button[aria-label*="Accept"]');
+    if (acceptButton) return 'pending';
+    
+    return 'not-connected';
+  }
+  
+  // Function to accept pending connection
+  async function acceptPendingConnection() {
+    const acceptButton = document.querySelector('button[aria-label*="Accept"]');
+    if (!acceptButton) return false;
+    
+    acceptButton.click();
+    updateStatusDetailed('✅ Connection request accepted');
+    
+    // Wait for the connection to be established
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check if message button is now available
+    return document.querySelector('button[aria-label*="Message"]') !== null;
+  }
+  
+  (async function() {
+    // Only run on LinkedIn profile pages
+    if (!window.location.href.includes('linkedin.com/in/')) {
+      return;
+    }
+    
+    console.log('Ready to message profiles', 0);
+  
+    // Add the new styles
+    addStyles();
+    const scroller = new Scroller();
+  
+    let isInitialized = false;
+    let lastUrl = window.location.href;
+  
+    // Renamed caching function to avoid conflicts
+    async function getProfileDataWithCache() {
+      console.log('Checking profile data cache', 0);
+      const currentUrl = window.location.href.split('?')[0]; // Remove query params
+      const cacheKey = `profileData_${currentUrl}`;
+      
+      // Try to get cached data first
+      const { [cacheKey]: cachedData } = await chrome.storage.local.get(cacheKey);
+      
+      if (cachedData) {
+        console.log("Using cached profile data", 0);
+        return cachedData;
+      }
+      
+      // If no cache, scrape fresh data
+      console.log("Gathering fresh profile data", 2);
+      const profileData = await gatherCompleteProfileData();
+      
+      // Store in cache with timestamp
+      const dataToCache = {
+        ...profileData,
+        _cachedAt: Date.now()
+      };
+      
+      await chrome.storage.local.set({ [cacheKey]: dataToCache });
+      
+      // Set expiration (24 hours)
+      setTimeout(async () => {
+        await chrome.storage.local.remove(cacheKey);
+      }, 24 * 60 * 60 * 1000);
+      
+      return profileData;
+    }
+  
+    async function initializeQuickReplyButton() {
+      if (isInitialized) return;
+      console.log('Initializing quick reply buttons', 1);
+      
+      // Wait for page to settle
+      await new Promise(resolve => setTimeout(resolve, 5000));
+  
+      // Check connection status
+      const connectionStatus = checkConnectionStatus();
+      
+      // Don't show buttons if not connected and no pending request
+      if (connectionStatus === 'not-connected') {
+        console.log('User is not connected and has no pending request', 0);
+        return;
+      }
+  
+      // Check if button already exists
+      if (document.getElementById('linkedin-quick-reply-buttons')) {
+        return;
+      }
+  
+      const { buttonConfigs = [] } = await chrome.storage.local.get(['buttonConfigs']);
+      if (!buttonConfigs.length) {
+        console.log('No button configs found', 0);
+        return;
+      }
+  
+      // Create container for buttons
+      const buttonContainer = document.createElement('div');
+      buttonContainer.id = 'linkedin-quick-reply-buttons';
+      buttonContainer.className = 'dynamic-comment-buttons';
+
+      // Create inner container for scrollable content
+      const innerContainer = document.createElement('div');
+      innerContainer.className = 'dynamic-comment-buttons-inner';
+      buttonContainer.appendChild(innerContainer);
+  
+      // Multiple possible locations to insert the buttons
+      const insertionPoints = [
+        // Standard profile action area
+        '.pv-top-card-v2-ctas__custom',
+        '.YVhLlvSJKxRQbVgJhjXUSVtLCKzCemxlsHsfhw',
+        // Connection request profile action area
+        '.pvs-profile-actions',
+        // Fallback to main profile section
+        '.ph5.pb5',
+        '.scaffold-layout__main'
+      ];
+  
+      // Try each insertion point until successful
+      let inserted = false;
+      for (const selector of insertionPoints) {
+        const targetElement = document.querySelector(selector);
+        if (targetElement) {
+          // Insert after the target element
+          targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling);
+          inserted = true;
+          break;
+        }
+      }
+  
+      if (!inserted) {
+        console.log('Could not find insertion point', 0);
+        console.warn('Could not find suitable insertion point for quick reply buttons');
+        return;
+      }
+  
+      // Create buttons from config
+      const buttons = [];
+      buttonConfigs.forEach(config => {
+        const button = document.createElement('button');
+        button.className = 'comment-btn';
+        button.textContent = config.name || config.label || 'Template';
+        button.setAttribute('data-original-text', config.name);
+        buttons.push(button);
+      });
+
+      // Create scrollable container with buttons
+      const { container: scrollableContainer, leftArrow, rightArrow } = scroller.createScrollableContainer(buttons);
+      innerContainer.appendChild(leftArrow);
+      innerContainer.appendChild(scrollableContainer);
+      innerContainer.appendChild(rightArrow);
+  
+      // Add click handlers to buttons
+      buttons.forEach((button, index) => {
+        const config = buttonConfigs[index];
+        
+        button.addEventListener('click', async () => {
+          if (button.disabled) return;
+          
+          button.disabled = true;
+          
+          try {
+            console.log(`Starting ${config.name} message`, 0);
+            
+            // Check connection status again in case it changed
+            const currentStatus = checkConnectionStatus();
+            
+            if (currentStatus === 'pending') {
+              // Try to accept the connection first
+              const accepted = await acceptPendingConnection();
+              if (!accepted) {
+                throw new Error('Failed to accept connection request');
+              }
+            } else if (currentStatus === 'not-connected') {
+              throw new Error('You must be connected to message this user');
+            }
+            
+            const profileData = await getProfileDataWithCache();
+            const aiSettings = await getAISettings();
+            
+            // Show loading indicator
+            const { 
+              loadingContainer, 
+              loadingMessage, 
+              stopButton, 
+              abortController, 
+              isCancelled 
+            } = createLoadingIndicator(buttons, buttonContainer);
+            
+            try {
+              console.log('Generating AI message', 2);
+              const response = await chrome.runtime.sendMessage({
+                action: "generateMessage",
+                profileData,
+                config,
+                aiSettings,
+                signal: abortController.signal
+              }).catch(err => {
+                if (err.message.includes('aborted') || err.message.includes('cancelled')) {
+                  throw new Error('Generation cancelled by user');
+                }
+                throw err;
+              });
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+              
+              console.log('Opening message window', 1);
+              const messageWindowOpened = await clickMessageButton();
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+
+              if (!messageWindowOpened) {
+                throw new Error('Failed to open message window');
+              }
+
+              await new Promise(resolve => setTimeout(resolve, 3000));
+
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+
+              console.log('Inserting message', 2);
+              await insertMessage(response.message, profileData);
+
+              loadingMessage.textContent = '✅ Message ready to send!';
+              stopButton.style.display = 'none';
+            } catch (error) {
+              if (error.message.includes('cancelled') || error.message.includes('aborted')) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                console.log('Message generation cancelled', 0);
+              } else {
+                console.error(error);
+                loadingMessage.textContent = `❌ Error: ${error.message}`;
+                console.log(`Error: ${error.message}`, 0);
+              }
+            } finally {
+              // Remove loading container after delay
+              setTimeout(() => {
+                if (loadingContainer.parentNode) {
+                  loadingContainer.style.display = 'none';
+                }
+                buttons.forEach(btn => {
+                  btn.style.display = '';
+                });
+              }, 2000);
+            }
+            
+            console.log('Message ready to send!', 1);
+          } catch (error) {
+            console.error(error);
+            console.log(`Error: ${error.message}`, 0);
+          } finally {
+            button.disabled = false;
+          }
+        });
+      });
+  
+      // Add AgentLink branding
+      buttonContainer.appendChild(createAgentLinkBranding());
+  
+      // Add mutation observer to handle dynamic page changes
+      const observer = new MutationObserver((mutations) => {
+        if (!document.getElementById('linkedin-quick-reply-buttons')) {
+          initializeQuickReplyButton();
+        }
+      });
+  
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+  
+      isInitialized = true;
+      console.log('Quick reply buttons initialized', 0);
+    }
+  
+    // Enhanced SPA navigation detection
+    function setupSPANavigationObserver() {
+      // Observer for DOM changes
+      const domObserver = new MutationObserver(function() {
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      });
+  
+      // Observer for URL changes (for pushState/replaceState)
+      const urlObserver = new MutationObserver(function() {
+        if (window.location.href !== lastUrl && window.location.href.includes('linkedin.com/in/')) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      });
+  
+      // Observe body for DOM changes
+      domObserver.observe(document.body, {
+        childList: true,
+        subtree: true
+      });
+  
+      // Observe title element for URL changes (LinkedIn updates this during navigation)
+      const titleElement = document.querySelector('title');
+      if (titleElement) {
+        urlObserver.observe(titleElement, {
+          childList: true
+        });
+      }
+  
+      // Listen for history changes
+      const pushState = history.pushState;
+      const replaceState = history.replaceState;
+  
+      history.pushState = function() {
+        pushState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      };
+  
+      history.replaceState = function() {
+        replaceState.apply(history, arguments);
+        if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          isInitialized = false;
+          initializeQuickReplyButton();
+        }
+      };
+  
+      window.addEventListener('beforeunload', () => {
+        domObserver.disconnect();
+        urlObserver.disconnect();
+      });
+    }
+  
+    // Initial setup
+    initializeQuickReplyButton();
+    setupSPANavigationObserver();
+  
+    // Fallback check after 3 seconds
+    setTimeout(() => {
+      if (!isInitialized) {
+        console.log('Running fallback initialization', 0);
+        initializeQuickReplyButton();
+      }
+    }, 3000);
+  
+    // Additional fallback - check every 2 seconds for SPA navigation
+    setInterval(() => {
+      if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
+        console.log('Detected profile page change', 0);
+        lastUrl = window.location.href;
+        isInitialized = false;
+        initializeQuickReplyButton();
+      }
+    }, 2000);
+  })();
+  
+  // Generic function to fetch text content from a specified selector
+  function fetchTextContent(selector, defaultValue = "Not found") {
+    return document.querySelector(selector)?.innerText.trim() || defaultValue;
+  }
+  
+  // Function to fetch the name from the first <h1> tag
+  function fetchName() {
+    return { name: fetchTextContent('h1', "Name not found") };
+  }
+  
+  // Function to fetch the designation from the specified <div> element
+  function fetchDesignation() {
+    return { designation: fetchTextContent('div.text-body-medium', "Designation not found") };
+  }
+  
+  // Function to fetch the profile location from the specified <span> element
+  function fetchLocation() {
+    return { profileLocation: fetchTextContent('span.text-body-small.inline', "Location not found") };
+  }
+  
+  // Function to fetch connection details
+  function fetchConnections() {
+    const smallConnections = fetchTextContent('li.text-body-small a span.t-bold', null);
+    const largeConnections = fetchTextContent('span.t-black--light span.t-bold', null);
+    return { connections: smallConnections || largeConnections || "Connections not found" };
+  }
+  
+  // Function to get followers data as an object
+  function getFollowersData() {
+    return { followers: fetchTextContent('li.text-body-small.t-black--light span.t-bold', "Followers not found") };
+  }
+  
+  // Async function to fetch mutual connections
+  async function getMutualConnections() {
+    const mutualElement = document.querySelector('.align-items-center.link-without-hover-visited');
+    if (mutualElement && mutualElement.getAttribute('aria-hidden') !== 'true' &&
+      !mutualElement.classList.contains('visually-hidden') &&
+      !mutualElement.classList.contains('**web-inspector-hide-shortcut**')) {
+      return mutualElement.textContent.trim().split('mutual connection')[0] + ' mutual connection';
+    }
+    return 'No mutual connections found';
+  }
+  
+  // Function to recursively gather text content from an element
+  function getTextContent(element) {
+    let text = '';
+  
+    element.childNodes.forEach(node => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        text += node.textContent.trim() + ' ';
+      } else if (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('visually-hidden')) {
+        text += getTextContent(node);
+      }
+    });
+  
+    return text;
+  }
+  
+  // Promise-based function to scrape all visible text content from a specified section
+  function scrapeAllTextContent(sectionSelector) {
+    return new Promise((resolve, reject) => {
+      const section = document.querySelector(sectionSelector);
+      if (!section) {
+        reject(new Error("Section not found: " + sectionSelector));
+        return;
+      }
+  
+      let textContent = getTextContent(section);
+      textContent = textContent.replace(/\s+/g, ' ').trim();
+      textContent = textContent.replace(/([.?!])\s*(?=[A-Z])/g, '$1\n\n');
+  
+      resolve(textContent);
+    });
+  }
+  
+  // --- AI settings retrieval ---
+  async function getAISettings() {
+    const { aiSettings = {} } = await chrome.storage.local.get(['aiSettings']);
+    return aiSettings;
+  }
+  
+  // Function to extract experience data
+  function extractExperienceData() {
+    const experienceData = { experience: [] };
+    const experienceHeading = [...document.querySelectorAll('h2')].find(h =>
+      h.textContent.trim().includes('Experience')
+    );
+  
+    if (experienceHeading) {
+      const experienceSection = experienceHeading.closest('section');
+      if (experienceSection) {
+        const experienceItems = experienceSection.querySelectorAll('li.artdeco-list__item');
+  
+        experienceItems.forEach(item => {
+          let texts = [];
+          const allTextElements = item.querySelectorAll('.t-bold, .t-14.t-normal, .t-black--light, strong');
+  
+          allTextElements.forEach(element => {
+            let text = element.textContent
+              .replace(/<!---->/g, '')
+              .replace(/\s+/g, ' ')
+              .trim();
+  
+            if (text.length > 1) {
+              const halfLength = Math.floor(text.length / 2);
+              if (text.substring(0, halfLength) === text.substring(halfLength)) {
+                text = text.substring(0, halfLength);
+              }
+            }
+  
+            if (text && !texts.includes(text)) {
+              texts.push(text);
+            }
+          });
+  
+          texts = [...new Set(texts)].filter(text => text && text !== 'Experience');
+          if (texts.length > 0) experienceData.experience.push({ texts });
+        });
+      }
+    }
+  
+    return experienceData;
+  }
+  
+  async function extractLinkedInExperience() {
+    const showAllButtons = [
+      document.querySelector('#navigation-index-see-all-positions-aggregated'),
+      document.querySelector('#navigation-index-see-all-experiences')
+    ].filter(button => button !== null); // Remove null values
+  
+    if (showAllButtons.length > 0) {
+      for (let button of showAllButtons) {
+        button.click();
+        console.log("Clicked 'Show all experiences' button.");
+      }
+  
+      await new Promise(resolve => setTimeout(resolve, 4000));
+  
+      const sectionSelector = 'section.artdeco-card.pb3';
+      const experienceSection = document.querySelector(sectionSelector);
+  
+      if (experienceSection) {
+        return new Promise(resolve => {
+          const observer = new MutationObserver((mutations, obs) => {
+            if (experienceSection.innerText.trim().length > 100) {
+              obs.disconnect();
+              scrapeAllTextContent(sectionSelector).then(scrapedText => {
+                console.log("Scraped Text Content:\n", scrapedText);
+                resolve(scrapedText);
+              }).catch(error => {
+                console.error("Error:", error.message);
+                resolve();
+              });
+            }
+          });
+  
+          observer.observe(experienceSection, { childList: true, subtree: true });
+  
+          setTimeout(() => {
+            observer.disconnect();
+            scrapeAllTextContent(sectionSelector).then(scrapedText => {
+              console.log("Scraped Text Content:\n", scrapedText);
+              resolve(scrapedText);
+            }).catch(error => {
+              console.error("Error:", error.message);
+              resolve();
+            });
+          }, 6000); // Fallback timeout of 6s
+        });
+      }
+    } else {
+      return extractExperienceData();
+    }
+  }
+  
+  async function GetAbout() {
+    let aboutSection = document.querySelector('#about');
+    if (aboutSection) {
+      let section = aboutSection.closest('section'); // Get the parent section
+      let contentDiv = section.querySelector('div.display-flex.ph5.pv3'); // Find the content container
+  
+      if (contentDiv) {
+        // Select all spans inside contentDiv, but exclude "visually-hidden" ones
+        let aboutText = Array.from(contentDiv.querySelectorAll('span:not(.visually-hidden)'))
+          .map(span => span.innerText.trim())
+          .join(' '); // Join text from multiple spans
+        
+        console.log(aboutText);
+        return aboutText;
+      } else {
+        console.log("About content not found.");
+        return "";
+      }
+    } else {
+      console.log("About section anchor not found.");
+      return "";
+    }
+  }
+  
+  async function extractBasicProfileInfo() {
+    // Selectors for scraping LinkedIn profile details
+    const nameSelector = 'h1';
+    const designationSelector = '.text-body-medium.break-words';
+    const locationSelector = 'span.text-body-small.inline.t-black--light.break-words';
+    const connectionsSelector = 'li.text-body-small:last-child .t-bold';
+    const followersSelector = 'ul li.text-body-small .t-bold';
+  
+    let obj = {
+      name: document.querySelector(nameSelector)?.innerText.trim() || 'Name not found',
+      designation: document.querySelector(designationSelector)?.innerText.trim() || 'Designation not found',
+      location: document.querySelector(locationSelector)?.innerText.trim() || 'Location not found',
+      connections: document.querySelector(connectionsSelector)?.innerText.trim() || 'Connections not found',
+      followers: document.querySelector(followersSelector)?.textContent.trim() || 'followers not found',
+      about: await GetAbout()
+    };
+    console.log(obj)
+    return obj;
+  }
+  
+  async function extractCurrentRole() {
+    const currentPosition = document.querySelector('.pv-text-details__right-panel .pv-text-details__right-panel-item');
+    return currentPosition?.innerText?.trim() || '';
+  }
+  
+  async function gatherCompleteProfileData() {
+    updateStatusDetailed('🔍 Analyzing profile data...');
+  
+    try {
+      const [basicInfo] = await Promise.all([
+        extractBasicProfileInfo(),
+      ]);
+  
+      const profileData = {
+        ...basicInfo
+      };
+  
+      // Log each key-value pair from profileData
+      Object.entries(profileData).forEach(([key, value]) => {
+        updateStatusDetailed(`${key}: ${value}`);
+      });
+  
+      updateStatusDetailed('✅ Profile analysis complete!');
+      return profileData;
+    } catch (error) {
+      console.error("Error extracting profile data:", error);
+      updateStatusDetailed('❌ Error analyzing profile: ' + error.message, 'error');
+      throw error;
+    }
+  }
+  
+  let statusMessages = [];
+  let isPopupVisible = false; // Changed to false to hide by default
+  
+  // Create enhanced status popup
+  function createStatusPopup() {
+    const popup = document.createElement('div');
+    popup.id = 'ai-status-popup';
+    popup.style.cssText = `       
+      position: fixed;
+      top: 100px;
+      left: 100px;
+      color: #e0e0ff;
+      background: #1a1a2e;
+      padding: 0;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(110, 46, 220, 0.3);
+      z-index: 9999;
+      font-family: 'Segoe UI', Roboto, sans-serif;
+      width: 450px;
+      max-height: 600px;
+      display: none; // Changed to none to hide by default
+      flex-direction: column;
+      border: 1px solid #6e2edc;
+      overflow: hidden;
+      cursor: move;
+    `;
+  
+    // Create header with controls
+    const header = document.createElement('div');
+    header.style.cssText = `
+      background: linear-gradient(90deg, #0033cc, #6e2edc);
+      color: white;
+      padding: 12px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-weight: bold;
+      font-size: 16px;
+      user-select: none;
+      border-bottom: 1px solid #6e2edc;
+    `;
+    header.innerHTML = `
+      <span>AI MESSAGE GENERATOR</span>
+      <div>
+        <button id="clear-status" style="
+          background: white;
+          color: #0033cc;
+          border: none;
+          padding: 3px 8px;
+          margin-right: 8px;
+          border-radius: 4px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        ">CLEAR</button>
+        <button id="toggle-status" style="
+          background: white;
+          color: #0033cc;
+          border: none;
+          padding: 3px 8px;
+          border-radius: 4px;
+          font-weight: bold;
+          cursor: pointer;
+          transition: all 0.2s ease;
+        ">SHOW</button> <!-- Changed to SHOW since we're hiding by default -->
+      </div>
+    `;
+  
+    // Create content area
+    const content = document.createElement('div');
+    content.id = 'status-messages';
+    content.style.cssText = `
+      padding: 15px;
+      overflow-y: auto;
+      flex-grow: 1;
+      background: #1a1a2e;
+      display: none; // Changed to none to hide by default
+    `;
+  
+    popup.appendChild(header);
+    popup.appendChild(content);
+    document.body.appendChild(popup);
+  
+    // Add hover effects to buttons
+    const buttons = header.querySelectorAll('button');
+    buttons.forEach(button => {
+      button.addEventListener('mouseover', () => {
+        button.style.background = '#e6e6ff';
+        button.style.transform = 'scale(1.05)';
+      });
+      button.addEventListener('mouseout', () => {
+        button.style.background = 'white';
+        button.style.transform = 'scale(1)';
+      });
+    });
+  
+    // Add drag functionality
+    let isDragging = false;
+    let offsetX, offsetY;
+  
+    header.addEventListener('mousedown', (e) => {
+      if (e.target.tagName === 'BUTTON') return;
+      
+      isDragging = true;
+      offsetX = e.clientX - popup.getBoundingClientRect().left;
+      offsetY = e.clientY - popup.getBoundingClientRect().top;
+      popup.style.cursor = 'grabbing';
+    });
+  
+    document.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      
+      popup.style.left = (e.clientX - offsetX) + 'px';
+      popup.style.top = (e.clientY - offsetY) + 'px';
+    });
+  
+    document.addEventListener('mouseup', () => {
+      isDragging = false;
+      popup.style.cursor = 'move';
+    });
+  
+    // Add button functionality
+    document.getElementById('clear-status').addEventListener('click', () => {
+      statusMessages = [];
+      updateStatusDisplay();
+    });
+  
+    document.getElementById('toggle-status').addEventListener('click', () => {
+      isPopupVisible = !isPopupVisible;
+      popup.style.display = isPopupVisible ? 'flex' : 'none';
+      content.style.display = isPopupVisible ? 'block' : 'none';
+      document.getElementById('toggle-status').textContent = isPopupVisible ? 'HIDE' : 'SHOW';
+    });
+  
+    return popup;
+  }
+  
+  // Update status display
+  function updateStatusDisplay() {
+    const popup = document.getElementById('ai-status-popup') || createStatusPopup();
+    const content = document.getElementById('status-messages');
+  
+    const messagesHtml = statusMessages.map(status => `
+      <div style="
+        margin-bottom: 15px;
+        padding-bottom: 15px;
+        border-bottom: 1px solid #2a2a3a;
+        ${status.type === 'error' ? 'border-left: 3px solid #ff4d4d; padding-left: 10px;' : ''}
+        ${status.type === 'success' ? 'border-left: 3px solid #4dff4d; padding-left: 10px;' : ''}
+        ${status.type === 'info' ? 'border-left: 3px solid #4d4dff; padding-left: 10px;' : ''}
+        ${status.type === 'ai-message' ? 'border-left: 3px solid #6e2edc; padding-left: 10px;' : ''}
+      ">
+        <div style="
+          font-size: 12px;
+          color: ${status.type === 'error' ? '#ff8080' : 
+                  status.type === 'success' ? '#80ff80' : 
+                  status.type === 'ai-message' ? '#b388ff' : '#9e9eff'};
+          margin-bottom: 5px;
+          font-weight: bold;
+        ">${status.time} • ${status.type.toUpperCase()}</div>
+        <div style="
+          font-size: 14px;
+          line-height: 1.5;
+          color: ${status.type === 'error' ? '#ffb3b3' : '#e0e0ff'};
+          font-weight: ${status.type === 'error' ? 'bold' : 'normal'};
+          white-space: pre-wrap;
+        ">${status.message}</div>
+      </div>
+    `).join('');
+  
+    content.innerHTML = messagesHtml;
+    content.scrollTop = content.scrollHeight;
+  }
+  
+  // Update status message
+  function updateStatusDetailed(message, type = 'info') {
+    console.log(`[${type}] ${message}`);
+  
+    statusMessages.push({
+      message,
+      type,
+      time: new Date().toLocaleTimeString()
+    });
+  
+    updateStatusDisplay();
+  
+    // Don't automatically show popup for new messages
+    // Keep it hidden unless user chooses to show it
+  }
+  
+  // Click Message Button
+  async function clickMessageButton() {
+    updateStatusDetailed('🔍 Looking for message button...');
+  
+    const messageButton = document.querySelector('button[aria-label*="Message"]');
+    if (!messageButton) {
+      updateStatusDetailed('❌ Message button not found!', 'error');
+      throw new Error("Message button not found");
+    }
+  
+    messageButton.click();
+    updateStatusDetailed('✅ Message dialog opened');
+    return true;
+  }
+  
+  async function insertMessage(message, profileData) {
+    updateStatusDetailed('⌨️ Inserting message...');
+  
+    return new Promise((resolve, reject) => {
+      let chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+      if (chatWindows.length > 0) {
+        processChatWindow(chatWindows[chatWindows.length - 1]);
+        return;
+      }
+  
+      const observer = new MutationObserver(() => {
+        chatWindows = document.querySelectorAll('.msg-overlay-conversation-bubble');
+        if (chatWindows.length === 0) return;
+  
+        observer.disconnect();
+        processChatWindow(chatWindows[chatWindows.length - 1]);
+      });
+  
+      observer.observe(document.body, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        characterData: true
+      });
+  
+      setTimeout(() => {
+        observer.disconnect();
+        updateStatusDetailed('❌ Timeout reached. No chat window found!', 'error');
+        reject(new Error('Chat window not found'));
+      }, 5000);
+  
+      async function processChatWindow(lastChatWindow) {
+        console.log('Target chat window:', lastChatWindow);
+  
+        const chatBoxNameElement = lastChatWindow.querySelector('a.profile-card-one-to-one__profile-link .truncate');
+        const chatBoxName = chatBoxNameElement ? chatBoxNameElement.innerText.trim() : '';
+  
+        const extractedProfileName = typeof profileData.name === 'object'
+          ? JSON.stringify(profileData.name)
+          : String(profileData.name).trim();
+  
+        console.log('Extracted Profile Name:', extractedProfileName);
+        console.log('Chat Box Name:', chatBoxName);
+        if (extractedProfileName && chatBoxName && extractedProfileName !== chatBoxName) {
+          console.error(`❌ Profile name (${extractedProfileName}) does not match chat box name (${chatBoxName})`);
+          updateStatusDetailed('❌ Profile name does not match chat box name!', 'error');
+          reject(new Error('Profile name mismatch'));
+          return;
+        }
+              const messageBox = lastChatWindow.querySelector('.msg-form__contenteditable');
+              if (messageBox) {
+                  messageBox.focus();
+                  messageBox.click();
+  // Clear the chatbox content first
+                  messageBox.innerHTML = '';
+                  messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+  
+  
+                  // ✅ Preserve paragraph formatting
+                  const paragraphs = message
+                      .split("\n")
+                      .map(para => para.trim())
+                      .filter(para => para.length > 0)
+                      .map(para => `<p>${para}</p>`)
+                      .join(""); 
+  
+                  document.execCommand("insertText", false, message); // ✅ Simulate text input
+                  messageBox.dispatchEvent(new Event("input", { bubbles: true }));
+  
+                  updateStatusDetailed('✅ Message inserted successfully!');
+                  resolve(true);
+              } else {
+                  console.log('❌ Message box not found.');
+                  reject(new Error('Message box not found'));
+              }
+          }
+      });
+    }
+})();
