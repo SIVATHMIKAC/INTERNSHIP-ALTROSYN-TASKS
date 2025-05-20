@@ -35,7 +35,7 @@
         text-align: center;
         transition: all 0.4s ease;
       }
-      #profile-sticky-header-toggle {
+      #profile-sticky-header-toggle{
         padding-top:1px;
       }
       .comment-btn:hover {
@@ -48,11 +48,11 @@
       }
   
       .comment-btn::after {
-        display: none;
+        display: none; /* Removed the ripple circle effect */
       }
   
       .comment-btn.active::after {
-        display: none;
+        display: none; /* Removed the ripple circle effect */
       }
   
       .comment-btn:disabled {
@@ -70,12 +70,33 @@
         padding: 10px;
         margin: 16px;
         display: flex;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
         gap: 10px;
         box-shadow: 0 0 8px rgba(100, 149, 237, 0.2);
         overflow-x: auto;
         background: #ffffff;
         justify-content: flex-start;
+        max-width: 100%;
+        scrollbar-width: thin;
+        scrollbar-color: #0033cc #f0f0f0;
+      }
+
+      .dynamic-comment-buttons::-webkit-scrollbar {
+        height: 6px;
+      }
+
+      .dynamic-comment-buttons::-webkit-scrollbar-track {
+        background: #f0f0f0;
+        border-radius: 3px;
+      }
+
+      .dynamic-comment-buttons::-webkit-scrollbar-thumb {
+        background-color: #0033cc;
+        border-radius: 3px;
+      }
+
+      .dynamic-comment-buttons.scrollable {
+        padding-bottom: 12px;
       }
   
       .dynamic-comment-buttons, .comment-btn {
@@ -112,49 +133,23 @@
       #ai-status-popup {
         display: none !important;
       }
-      
-      /* Connection status styles */
-      .connection-status-message {
-        width: 100%;
-        padding: 10px;
-        margin-bottom: 10px;
-        border-radius: 8px;
-        font-size: 14px;
-        text-align: center;
-      }
-      .connection-status-pending {
-        background-color: #fff3e0;
-        color: #e65100;
-        border: 1px solid #ffcc80;
-      }
-      .connection-status-not-connected {
-        background-color: #ffebee;
-        color: #c62828;
-        border: 1px solid #ef9a9a;
-      }
-      .connection-status-connected {
-        background-color: #e8f5e9;
-        color: #2e7d32;
-        border: 1px solid #a5d6a7;
-      }
-      .connection-status-accept {
-        background-color: #e3f2fd;
-        color: #0d47a1;
-        border: 1px solid #90caf9;
-      }
-      
-      /* AgentLink button specific styles */
-      .agentlink-btn {
-        background-color: #24268d !important;
-        color: white !important;
-        border: none !important;
-      }
-      .agentlink-btn:hover {
-        background-color: #1a1a6d !important;
-      }
     `;
     document.head.appendChild(style);
   };
+
+  // Function to check if scrollbar is needed
+  function checkScrollbarNeeded(container) {
+    return container.scrollWidth > container.clientWidth;
+  }
+
+  // Function to update scrollbar visibility
+  function updateScrollbarVisibility(container) {
+    if (checkScrollbarNeeded(container)) {
+      container.classList.add('scrollable');
+    } else {
+      container.classList.remove('scrollable');
+    }
+  }
   
   // Create AgentLink Branding Footer
   function createAgentLinkBranding() {
@@ -186,9 +181,11 @@
   
   // Loading Indicator
   function createLoadingIndicator(buttons, container) {
+    // Create abort controller for cancellation
     const abortController = new AbortController();
     let isCancelled = false;
   
+    // Hide all buttons and show loading message with stop button
     const loadingContainer = document.createElement('div');
     loadingContainer.className = 'ai-loading-container';
     loadingContainer.style.display = 'flex';
@@ -237,6 +234,7 @@
       stopButton.style.cursor = 'not-allowed';
       stopButton.style.opacity = '0.7';
       
+      // Hide loading container after 1 second
       setTimeout(() => {
         if (loadingContainer.parentNode) {
           loadingContainer.style.display = 'none';
@@ -250,10 +248,12 @@
     loadingContainer.appendChild(loadingMessage);
     loadingContainer.appendChild(stopButton);
   
+    // Hide all buttons
     buttons.forEach(btn => {
       btn.style.display = 'none';
     });
   
+    // Insert loading container
     container.insertBefore(loadingContainer, container.firstChild);
     
     return { 
@@ -264,140 +264,42 @@
       isCancelled: () => isCancelled 
     };
   }
-
-  // Enhanced function to check connection status
+  
+  // Check if user is connected or has pending connection
   function checkConnectionStatus() {
-    // Check if already connected (Message button exists)
-    const messageButton = document.querySelector('button[aria-label*="Message"]');
-    if (messageButton) {
-      return 'connected';
-    }
+    // Check if already connected
+    const connectedButton = document.querySelector('button[aria-label*="Message"]');
+    if (connectedButton) return 'connected';
     
-    // Check if request is pending (Pending button exists)
-    const pendingButton = document.querySelector('button[aria-label*="Pending"]');
-    if (pendingButton) {
-      return 'pending';
-    }
-    
-    // Check if there's an incoming request to accept (Accept button exists)
+    // Check if there's a pending connection request
     const acceptButton = document.querySelector('button[aria-label*="Accept"]');
-    if (acceptButton) {
-      return 'accept';
-    }
+    if (acceptButton) return 'pending';
     
-    // Check if not connected (Connect button exists)
-    const connectButton = document.querySelector('button[aria-label*="Connect"]');
-    if (connectButton) {
-      return 'not-connected';
-    }
-    
-    // Default case
-    return 'unknown';
-  }
-
-  // Function to show connection status message and appropriate buttons
-  function showConnectionStatus(container, status) {
-    // Remove any existing status message
-    const existingStatus = container.querySelector('.connection-status-message');
-    if (existingStatus) {
-      existingStatus.remove();
-    }
-    
-    // Create new status message element
-    const statusMessage = document.createElement('div');
-    statusMessage.className = `connection-status-message connection-status-${status.toLowerCase().replace(' ', '-')}`;
-    
-    // Set message based on status
-    switch(status) {
-      case 'connected':
-        statusMessage.textContent = '✅ You are connected with this person and can message them.';
-        break;
-      case 'pending':
-        statusMessage.textContent = '⏳ Your connection request is pending. You can message after they accept.';
-        break;
-      case 'accept':
-        statusMessage.textContent = '✉️ You have a connection request from this person. Accept it to message them.';
-        break;
-      case 'not-connected':
-        statusMessage.textContent = '🔗 You need to connect with this person before you can message them.';
-        break;
-      default:
-        statusMessage.textContent = '❓ Unable to determine connection status.';
-    }
-    
-    // Insert the status message at the top of the container
-    container.insertBefore(statusMessage, container.firstChild);
-    
-    return status;
+    return 'not-connected';
   }
   
-  // Function to create AgentLink Connect button
-  function createAgentLinkConnectButton() {
-    const agentLinkButton = document.createElement('button');
-    agentLinkButton.className = 'comment-btn agentlink-btn';
-    agentLinkButton.textContent = 'Connect via AgentLink';
+  // Function to accept pending connection
+  async function acceptPendingConnection() {
+    const acceptButton = document.querySelector('button[aria-label*="Accept"]');
+    if (!acceptButton) return false;
     
-    agentLinkButton.addEventListener('click', () => {
-      const connectButton = document.querySelector('button[aria-label*="Connect"]');
-      if (connectButton) {
-        connectButton.click();
-        
-        // After clicking connect, show a brief message
-        setTimeout(() => {
-          const buttonContainer = document.getElementById('linkedin-quick-reply-buttons');
-          if (buttonContainer) {
-            const statusMessage = buttonContainer.querySelector('.connection-status-message');
-            if (statusMessage) {
-              statusMessage.textContent = '✉️ Connection request sent! You can message after they accept.';
-              statusMessage.className = 'connection-status-message connection-status-pending';
-            }
-            
-            // Remove the connect button since we've already sent the request
-            const connectBtn = buttonContainer.querySelector('.agentlink-btn');
-            if (connectBtn) {
-              connectBtn.remove();
-            }
-          }
-        }, 1000);
-      }
-    });
+    acceptButton.click();
+    updateStatusDetailed('✅ Connection request accepted');
     
-    return agentLinkButton;
+    // Wait for the connection to be established
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    // Check if message button is now available
+    return document.querySelector('button[aria-label*="Message"]') !== null;
   }
-
-  // Function to create Accept Request button
-  function createAcceptRequestButton() {
-    const acceptRequestButton = document.createElement('button');
-    acceptRequestButton.className = 'comment-btn agentlink-btn';
-    acceptRequestButton.textContent = 'Accept Request';
-    
-    acceptRequestButton.addEventListener('click', () => {
-      const acceptButton = document.querySelector('button[aria-label*="Accept"]');
-      if (acceptButton) {
-        acceptButton.click();
-        
-        // After accepting, show message buttons immediately
-        setTimeout(() => {
-          const buttonContainer = document.getElementById('linkedin-quick-reply-buttons');
-          if (buttonContainer) {
-            buttonContainer.innerHTML = '';
-            initializeQuickReplyButton();
-          }
-        }, 2000);
-      }
-    });
-    
-    return acceptRequestButton;
-  }
-
-  // Main initialization function
+  
   (async function() {
     // Only run on LinkedIn profile pages
     if (!window.location.href.includes('linkedin.com/in/')) {
       return;
     }
-  
-    console.log('AgentLink: Ready to message profiles', 0);
+    
+    console.log('Ready to message profiles', 0);
   
     // Add the new styles
     addStyles();
@@ -405,22 +307,25 @@
     let isInitialized = false;
     let lastUrl = window.location.href;
   
-    // Caching function
+    // Renamed caching function to avoid conflicts
     async function getProfileDataWithCache() {
-      console.log('AgentLink: Checking profile data cache', 0);
-      const currentUrl = window.location.href.split('?')[0];
+      console.log('Checking profile data cache', 0);
+      const currentUrl = window.location.href.split('?')[0]; // Remove query params
       const cacheKey = `profileData_${currentUrl}`;
       
+      // Try to get cached data first
       const { [cacheKey]: cachedData } = await chrome.storage.local.get(cacheKey);
       
       if (cachedData) {
-        console.log("AgentLink: Using cached profile data", 0);
+        console.log("Using cached profile data", 0);
         return cachedData;
       }
       
-      console.log("AgentLink: Gathering fresh profile data", 2);
+      // If no cache, scrape fresh data
+      console.log("Gathering fresh profile data", 2);
       const profileData = await gatherCompleteProfileData();
       
+      // Store in cache with timestamp
       const dataToCache = {
         ...profileData,
         _cachedAt: Date.now()
@@ -428,6 +333,7 @@
       
       await chrome.storage.local.set({ [cacheKey]: dataToCache });
       
+      // Set expiration (24 hours)
       setTimeout(async () => {
         await chrome.storage.local.remove(cacheKey);
       }, 24 * 60 * 60 * 1000);
@@ -437,204 +343,219 @@
   
     async function initializeQuickReplyButton() {
       if (isInitialized) return;
-      console.log('AgentLink: Initializing quick reply buttons', 1);
+      console.log('Initializing quick reply buttons', 1);
       
       // Wait for page to settle
-      await new Promise(resolve => setTimeout(resolve, 4000));
-
+      await new Promise(resolve => setTimeout(resolve, 5000));
+  
+      // Check connection status
+      const connectionStatus = checkConnectionStatus();
+      
+      // Don't show buttons if not connected and no pending request
+      if (connectionStatus === 'not-connected') {
+        console.log('User is not connected and has no pending request', 0);
+        return;
+      }
+  
       // Check if button already exists
       if (document.getElementById('linkedin-quick-reply-buttons')) {
         return;
       }
-
+  
       const { buttonConfigs = [] } = await chrome.storage.local.get(['buttonConfigs']);
       if (!buttonConfigs.length) {
-        console.log('AgentLink: No button configs found', 0);
+        console.log('No button configs found', 0);
         return;
       }
-
+  
       // Create container for buttons
       const buttonContainer = document.createElement('div');
       buttonContainer.id = 'linkedin-quick-reply-buttons';
       buttonContainer.className = 'dynamic-comment-buttons';
-
+  
       // Multiple possible locations to insert the buttons
       const insertionPoints = [
+        // Standard profile action area
         '.pv-top-card-v2-ctas__custom',
         '.YVhLlvSJKxRQbVgJhjXUSVtLCKzCemxlsHsfhw',
+        // Connection request profile action area
         '.pvs-profile-actions',
+        // Fallback to main profile section
         '.ph5.pb5',
         '.scaffold-layout__main'
       ];
-
+  
       // Try each insertion point until successful
       let inserted = false;
       for (const selector of insertionPoints) {
         const targetElement = document.querySelector(selector);
         if (targetElement) {
+          // Insert after the target element
           targetElement.parentNode.insertBefore(buttonContainer, targetElement.nextSibling);
           inserted = true;
           break;
         }
       }
-
+  
       if (!inserted) {
-        console.log('AgentLink: Could not find insertion point', 0);
+        console.log('Could not find insertion point', 0);
+        console.warn('Could not find suitable insertion point for quick reply buttons');
         return;
       }
-
-      // Check connection status
-      const connectionStatus = checkConnectionStatus();
-      
-      // Show appropriate status message
-      showConnectionStatus(buttonContainer, connectionStatus);
-      
-      // Handle different connection states
-      switch(connectionStatus) {
-        case 'not-connected':
-          // Add Connect button
-          buttonContainer.appendChild(createAgentLinkConnectButton());
-          break;
+  
+      // Create buttons from config
+      buttonConfigs.forEach(config => {
+        const button = document.createElement('button');
+        button.className = 'comment-btn';
+        button.textContent = config.name || config.label || 'Template';
+        button.setAttribute('data-original-text', config.name);
+  
+        // Add click handler
+        button.addEventListener('click', async () => {
+          if (button.disabled) return;
           
-        case 'accept':
-          // Add Accept Request button
-          buttonContainer.appendChild(createAcceptRequestButton());
-          break;
+          button.disabled = true;
           
-        case 'connected':
-          // Create buttons from config for connected users
-          buttonConfigs.forEach(config => {
-            const button = document.createElement('button');
-            button.className = 'comment-btn';
-            button.textContent = config.name || config.label || 'Template';
-            button.setAttribute('data-original-text', config.name);
-
-            button.addEventListener('click', async () => {
-              if (button.disabled) return;
-              
-              button.disabled = true;
-              
-              try {
-                console.log(`AgentLink: Starting ${config.name} message`, 0);
-                const profileData = await getProfileDataWithCache();
-                const aiSettings = await getAISettings();
-                
-                const buttons = Array.from(buttonContainer.querySelectorAll('.comment-btn'));
-                const { 
-                  loadingContainer, 
-                  loadingMessage, 
-                  stopButton, 
-                  abortController, 
-                  isCancelled 
-                } = createLoadingIndicator(buttons, buttonContainer);
-                
-                try {
-                  console.log('AgentLink: Generating AI message', 2);
-                  const response = await chrome.runtime.sendMessage({
-                    action: "generateMessage",
-                    profileData,
-                    config,
-                    aiSettings,
-                    signal: abortController.signal
-                  }).catch(err => {
-                    if (err.message.includes('aborted') || err.message.includes('cancelled')) {
-                      throw new Error('Generation cancelled by user');
-                    }
-                    throw err;
-                  });
-                  
-                  if (isCancelled()) {
-                    loadingMessage.textContent = '❌ Generation cancelled';
-                    throw new Error('Generation cancelled by user');
-                  }
-                  
-                  console.log('AgentLink: Opening message window', 1);
-                  const messageWindowOpened = await clickMessageButton();
-                  
-                  if (isCancelled()) {
-                    loadingMessage.textContent = '❌ Generation cancelled';
-                    throw new Error('Generation cancelled by user');
-                  }
-
-                  if (!messageWindowOpened) {
-                    throw new Error('Failed to open message window');
-                  }
-
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-
-                  if (isCancelled()) {
-                    loadingMessage.textContent = '❌ Generation cancelled';
-                    throw new Error('Generation cancelled by user');
-                  }
-
-                  console.log('AgentLink: Inserting message', 2);
-                  await insertMessage(response.message, profileData);
-
-                  loadingMessage.textContent = '✅ Message ready to send!';
-                  stopButton.style.display = 'none';
-                } catch (error) {
-                  if (error.message.includes('cancelled') || error.message.includes('aborted')) {
-                    loadingMessage.textContent = '❌ Generation cancelled';
-                    console.log('AgentLink: Message generation cancelled', 0);
-                  } else {
-                    console.error(error);
-                    loadingMessage.textContent = `❌ Error: ${error.message}`;
-                    console.log(`AgentLink: Error: ${error.message}`, 0);
-                  }
-                } finally {
-                  setTimeout(() => {
-                    if (loadingContainer.parentNode) {
-                      loadingContainer.style.display = 'none';
-                    }
-                    buttons.forEach(btn => {
-                      btn.style.display = '';
-                    });
-                  }, 2000);
-                }
-                
-                console.log('AgentLink: Message ready to send!', 1);
-              } catch (error) {
-                console.error(error);
-                console.log(`AgentLink: Error: ${error.message}`, 0);
-              } finally {
-                button.disabled = false;
+          try {
+            console.log(`Starting ${config.name} message`, 0);
+            
+            // Check connection status again in case it changed
+            const currentStatus = checkConnectionStatus();
+            
+            if (currentStatus === 'pending') {
+              // Try to accept the connection first
+              const accepted = await acceptPendingConnection();
+              if (!accepted) {
+                throw new Error('Failed to accept connection request');
               }
-            });
-
-            buttonContainer.appendChild(button);
-          });
-          break;
-          
-        case 'pending':
-          // No additional buttons for pending state
-          break;
-          
-        default:
-          // Unknown state - no buttons
-          break;
-      }
-
+            } else if (currentStatus === 'not-connected') {
+              throw new Error('You must be connected to message this user');
+            }
+            
+            const profileData = await getProfileDataWithCache();
+            const aiSettings = await getAISettings();
+            
+            // Show loading indicator
+            const buttons = Array.from(buttonContainer.querySelectorAll('.comment-btn'));
+            const { 
+              loadingContainer, 
+              loadingMessage, 
+              stopButton, 
+              abortController, 
+              isCancelled 
+            } = createLoadingIndicator(buttons, buttonContainer);
+            
+            try {
+              console.log('Generating AI message', 2);
+              const response = await chrome.runtime.sendMessage({
+                action: "generateMessage",
+                profileData,
+                config,
+                aiSettings,
+                signal: abortController.signal
+              }).catch(err => {
+                if (err.message.includes('aborted') || err.message.includes('cancelled')) {
+                  throw new Error('Generation cancelled by user');
+                }
+                throw err;
+              });
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+              
+              console.log('Opening message window', 1);
+              const messageWindowOpened = await clickMessageButton();
+              
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+  
+              if (!messageWindowOpened) {
+                throw new Error('Failed to open message window');
+              }
+  
+              await new Promise(resolve => setTimeout(resolve, 3000));
+  
+              if (isCancelled()) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                throw new Error('Generation cancelled by user');
+              }
+  
+              console.log('Inserting message', 2);
+              await insertMessage(response.message, profileData);
+  
+              loadingMessage.textContent = '✅ Message ready to send!';
+              stopButton.style.display = 'none';
+            } catch (error) {
+              if (error.message.includes('cancelled') || error.message.includes('aborted')) {
+                loadingMessage.textContent = '❌ Generation cancelled';
+                console.log('Message generation cancelled', 0);
+              } else {
+                console.error(error);
+                loadingMessage.textContent = `❌ Error: ${error.message}`;
+                console.log(`Error: ${error.message}`, 0);
+              }
+            } finally {
+              // Remove loading container after delay
+              setTimeout(() => {
+                if (loadingContainer.parentNode) {
+                  loadingContainer.style.display = 'none';
+                }
+                buttons.forEach(btn => {
+                  btn.style.display = '';
+                });
+              }, 2000);
+            }
+            
+            console.log('Message ready to send!', 1);
+          } catch (error) {
+            console.error(error);
+            console.log(`Error: ${error.message}`, 0);
+          } finally {
+            button.disabled = false;
+          }
+        });
+  
+        buttonContainer.appendChild(button);
+      });
+  
       // Add AgentLink branding
       buttonContainer.appendChild(createAgentLinkBranding());
-
+  
+      // Check if scrollbar is needed initially
+      updateScrollbarVisibility(buttonContainer);
+  
+      // Add resize observer to check if scrollbar is needed when buttons change
+      const resizeObserver = new ResizeObserver(() => {
+        updateScrollbarVisibility(buttonContainer);
+      });
+      resizeObserver.observe(buttonContainer);
+  
       // Add mutation observer to handle dynamic page changes
       const observer = new MutationObserver((mutations) => {
         if (!document.getElementById('linkedin-quick-reply-buttons')) {
           initializeQuickReplyButton();
+        } else {
+          // Check scrollbar whenever buttons change
+          updateScrollbarVisibility(buttonContainer);
         }
       });
-
+  
       observer.observe(document.body, {
         childList: true,
         subtree: true
       });
-
+  
       isInitialized = true;
-      console.log('AgentLink: Quick reply buttons initialized', 0);
+      console.log('Quick reply buttons initialized', 0);
     }
-
+  
     // Enhanced SPA navigation detection
     function setupSPANavigationObserver() {
+      // Observer for DOM changes
       const domObserver = new MutationObserver(function() {
         if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
           lastUrl = window.location.href;
@@ -642,7 +563,8 @@
           initializeQuickReplyButton();
         }
       });
-
+  
+      // Observer for URL changes (for pushState/replaceState)
       const urlObserver = new MutationObserver(function() {
         if (window.location.href !== lastUrl && window.location.href.includes('linkedin.com/in/')) {
           lastUrl = window.location.href;
@@ -650,22 +572,25 @@
           initializeQuickReplyButton();
         }
       });
-
+  
+      // Observe body for DOM changes
       domObserver.observe(document.body, {
         childList: true,
         subtree: true
       });
-
+  
+      // Observe title element for URL changes (LinkedIn updates this during navigation)
       const titleElement = document.querySelector('title');
       if (titleElement) {
         urlObserver.observe(titleElement, {
           childList: true
         });
       }
-
+  
+      // Listen for history changes
       const pushState = history.pushState;
       const replaceState = history.replaceState;
-
+  
       history.pushState = function() {
         pushState.apply(history, arguments);
         if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
@@ -674,7 +599,7 @@
           initializeQuickReplyButton();
         }
       };
-
+  
       history.replaceState = function() {
         replaceState.apply(history, arguments);
         if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
@@ -683,29 +608,29 @@
           initializeQuickReplyButton();
         }
       };
-
+  
       window.addEventListener('beforeunload', () => {
         domObserver.disconnect();
         urlObserver.disconnect();
       });
     }
-
+  
     // Initial setup
     initializeQuickReplyButton();
     setupSPANavigationObserver();
-
+  
     // Fallback check after 3 seconds
     setTimeout(() => {
       if (!isInitialized) {
-        console.log('AgentLink: Running fallback initialization', 0);
+        console.log('Running fallback initialization', 0);
         initializeQuickReplyButton();
       }
     }, 3000);
-
+  
     // Additional fallback - check every 2 seconds for SPA navigation
     setInterval(() => {
       if (window.location.href.includes('linkedin.com/in/') && window.location.href !== lastUrl) {
-        console.log('AgentLink: Detected profile page change', 0);
+        console.log('Detected profile page change', 0);
         lastUrl = window.location.href;
         isInitialized = false;
         initializeQuickReplyButton();
@@ -841,7 +766,7 @@
     const showAllButtons = [
       document.querySelector('#navigation-index-see-all-positions-aggregated'),
       document.querySelector('#navigation-index-see-all-experiences')
-    ].filter(button => button !== null);
+    ].filter(button => button !== null); // Remove null values
   
     if (showAllButtons.length > 0) {
       for (let button of showAllButtons) {
@@ -880,7 +805,7 @@
               console.error("Error:", error.message);
               resolve();
             });
-          }, 6000);
+          }, 6000); // Fallback timeout of 6s
         });
       }
     } else {
@@ -891,13 +816,14 @@
   async function GetAbout() {
     let aboutSection = document.querySelector('#about');
     if (aboutSection) {
-      let section = aboutSection.closest('section');
-      let contentDiv = section.querySelector('div.display-flex.ph5.pv3');
+      let section = aboutSection.closest('section'); // Get the parent section
+      let contentDiv = section.querySelector('div.display-flex.ph5.pv3'); // Find the content container
   
       if (contentDiv) {
+        // Select all spans inside contentDiv, but exclude "visually-hidden" ones
         let aboutText = Array.from(contentDiv.querySelectorAll('span:not(.visually-hidden)'))
           .map(span => span.innerText.trim())
-          .join(' ');
+          .join(' '); // Join text from multiple spans
         
         console.log(aboutText);
         return aboutText;
@@ -907,11 +833,12 @@
       }
     } else {
       console.log("About section anchor not found.");
-      return "";
+        return "";
     }
   }
   
   async function extractBasicProfileInfo() {
+    // Selectors for scraping LinkedIn profile details
     const nameSelector = 'h1';
     const designationSelector = '.text-body-medium.break-words';
     const locationSelector = 'span.text-body-small.inline.t-black--light.break-words';
@@ -947,6 +874,7 @@
         ...basicInfo
       };
   
+      // Log each key-value pair from profileData
       Object.entries(profileData).forEach(([key, value]) => {
         updateStatusDetailed(`${key}: ${value}`);
       });
@@ -961,7 +889,7 @@
   }
   
   let statusMessages = [];
-  let isPopupVisible = false;
+  let isPopupVisible = false; // Changed to false to hide by default
   
   // Create enhanced status popup
   function createStatusPopup() {
@@ -980,13 +908,14 @@
       font-family: 'Segoe UI', Roboto, sans-serif;
       width: 450px;
       max-height: 600px;
-      display: none;
+      display: none; // Changed to none to hide by default
       flex-direction: column;
       border: 1px solid #6e2edc;
       overflow: hidden;
       cursor: move;
     `;
   
+    // Create header with controls
     const header = document.createElement('div');
     header.style.cssText = `
       background: linear-gradient(90deg, #0033cc, #6e2edc);
@@ -1023,10 +952,11 @@
           font-weight: bold;
           cursor: pointer;
           transition: all 0.2s ease;
-        ">SHOW</button>
+        ">SHOW</button> <!-- Changed to SHOW since we're hiding by default -->
       </div>
     `;
   
+    // Create content area
     const content = document.createElement('div');
     content.id = 'status-messages';
     content.style.cssText = `
@@ -1034,13 +964,14 @@
       overflow-y: auto;
       flex-grow: 1;
       background: #1a1a2e;
-      display: none;
+      display: none; // Changed to none to hide by default
     `;
   
     popup.appendChild(header);
     popup.appendChild(content);
     document.body.appendChild(popup);
   
+    // Add hover effects to buttons
     const buttons = header.querySelectorAll('button');
     buttons.forEach(button => {
       button.addEventListener('mouseover', () => {
@@ -1053,6 +984,7 @@
       });
     });
   
+    // Add drag functionality
     let isDragging = false;
     let offsetX, offsetY;
   
@@ -1077,6 +1009,7 @@
       popup.style.cursor = 'move';
     });
   
+    // Add button functionality
     document.getElementById('clear-status').addEventListener('click', () => {
       statusMessages = [];
       updateStatusDisplay();
@@ -1238,4 +1171,4 @@
           }
       });
     }
-  })();
+})();
