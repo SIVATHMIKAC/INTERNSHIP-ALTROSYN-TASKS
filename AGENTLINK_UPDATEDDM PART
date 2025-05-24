@@ -14,7 +14,7 @@
     });
   };
 
-  // Scroller class implementation
+  // Scroller class implementation with disabled arrow states
   class Scroller {
     constructor() {
       this.initStyles();
@@ -56,18 +56,15 @@
           z-index: 2;
           box-shadow: 0 2px 4px rgba(0,0,0,0.1);
           transition: all 0.2s;
-          opacity: 1;
-          visibility: visible;
-          transition: opacity 0.2s ease, visibility 0.2s ease;
         }
 
-        .scroll-arrow.hidden {
-          opacity: 0;
-          visibility: hidden;
-          pointer-events: none;
+        .scroll-arrow:disabled {
+          opacity: 0.4;
+          cursor: default;
+          background: #f5f5f5;
         }
 
-        .scroll-arrow:hover {
+        .scroll-arrow:not(:disabled):hover {
           background: #f0f0f0;
         }
 
@@ -84,6 +81,10 @@
           height: 16px;
           fill: #24268d;
         }
+
+        .scroll-arrow:disabled svg {
+          fill: #999;
+        }
       `;
       document.head.appendChild(style);
     }
@@ -94,11 +95,14 @@
 
       // Create scroll arrows
       const leftArrow = document.createElement('button');
-      leftArrow.className = 'scroll-arrow left hidden';
+      leftArrow.className = 'scroll-arrow left';
+      leftArrow.disabled = true;
       leftArrow.innerHTML = `<svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg>`;
       leftArrow.addEventListener('click', (e) => {
         e.preventDefault();
-        container.scrollBy({ left: -200, behavior: 'smooth' });
+        if (!leftArrow.disabled) {
+          container.scrollBy({ left: -200, behavior: 'smooth' });
+        }
       });
 
       const rightArrow = document.createElement('button');
@@ -106,7 +110,9 @@
       rightArrow.innerHTML = `<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>`;
       rightArrow.addEventListener('click', (e) => {
         e.preventDefault();
-        container.scrollBy({ left: 200, behavior: 'smooth' });
+        if (!rightArrow.disabled) {
+          container.scrollBy({ left: 200, behavior: 'smooth' });
+        }
       });
 
       // Add buttons to container
@@ -116,12 +122,12 @@
 
       // Add scroll event listener
       container.addEventListener('scroll', () => {
-        this.updateArrowVisibility(container, leftArrow, rightArrow);
+        this.updateArrowStates(container, leftArrow, rightArrow);
       });
 
-      // Initial arrow visibility check
+      // Initial arrow state check
       setTimeout(() => {
-        this.updateArrowVisibility(container, leftArrow, rightArrow);
+        this.updateArrowStates(container, leftArrow, rightArrow);
       }, 100);
 
       return {
@@ -131,22 +137,16 @@
       };
     }
 
-    updateArrowVisibility(scrollableContainer, leftArrow, rightArrow) {
+    updateArrowStates(scrollableContainer, leftArrow, rightArrow) {
       const scrollLeft = scrollableContainer.scrollLeft;
       const scrollWidth = scrollableContainer.scrollWidth;
       const clientWidth = scrollableContainer.clientWidth;
 
-      if (scrollLeft <= 10) {
-        leftArrow.classList.add('hidden');
-      } else {
-        leftArrow.classList.remove('hidden');
-      }
+      // Update left arrow state
+      leftArrow.disabled = scrollLeft <= 10;
 
-      if (scrollLeft >= scrollWidth - clientWidth - 10) {
-        rightArrow.classList.add('hidden');
-      } else {
-        rightArrow.classList.remove('hidden');
-      }
+      // Update right arrow state
+      rightArrow.disabled = scrollLeft >= scrollWidth - clientWidth - 10;
     }
   }
 
